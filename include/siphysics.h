@@ -3,14 +3,7 @@
 
 /* This generated file contains includes for project dependencies */
 #include "siphysics/bake_config.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#ifdef __cplusplus
-}
-#endif
+#include "siphysics/components.h"
+#include "siphysics/physics.h"
 
 #endif
-

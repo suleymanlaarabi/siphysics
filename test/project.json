@@ -12,7 +12,11 @@
     "testsuites": [
       {
         "id": "basic",
-        "testcases": ["simple"]
+        "testcases": [
+          "simple",
+          "module_and_defaults",
+          "body_components"
+        ]
       }
     ]
   },

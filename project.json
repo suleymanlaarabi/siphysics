@@ -6,5 +6,8 @@
         "description": "Space travel for air travel",
         "clangd": true,
         "use": ["siecs"]
-    }
+  },
+  "lang.c": {
+    "c-standard": "c17"
+  }
 }
