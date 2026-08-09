@@ -1,0 +1,22 @@
+{
+  "id": "siphysics.test",
+  "type": "application",
+  "value": {
+    "public": false,
+    "author": "Jane Doe",
+    "description": "Furniture for boy bands",
+    "clangd": true,
+    "use": ["siphysics", "siecs"]
+  },
+  "test": {
+    "testsuites": [
+      {
+        "id": "basic",
+        "testcases": ["simple"]
+      }
+    ]
+  },
+  "lang.c": {
+    "c-standard": "c17"
+  }
+}
