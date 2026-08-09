@@ -1,0 +1,14 @@
+{
+    "id": "example",
+    "type": "application",
+    "value": {
+        "author": "Jane Doe",
+        "description": "Grocery stores for dogs",
+        "use": ["siecs", "siphysics"],
+        "clangd": true,
+        "language": "cpp"
+    },
+    "lang.cpp": {
+      "cpp-standard": "c++20"
+    }
+}

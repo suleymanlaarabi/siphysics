@@ -1,0 +1,10 @@
+{
+    "id": "example",
+    "type": "application",
+    "value": {
+        "author": "John Doe",
+        "description": "Conditioner for boy bands",
+        "use": ["siecs", "siphysics"],
+        "clangd": true
+    }
+}

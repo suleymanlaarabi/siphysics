@@ -1,0 +1,8 @@
+Diagnostics:
+  UnusedIncludes: None
+---
+If:
+  PathMatch: addons/siecs_cpp/.*\.(h|hpp)
+CompileFlags:
+  Remove: [-std=c23]
+  Add: [-xc++, -std=c++23]

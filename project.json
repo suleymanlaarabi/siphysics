@@ -1,0 +1,10 @@
+{
+    "id": "siphysics",
+    "type": "package",
+    "value": {
+        "author": "Jane Doe",
+        "description": "Space travel for air travel",
+        "clangd": true,
+        "use": ["siecs"]
+    }
+}
