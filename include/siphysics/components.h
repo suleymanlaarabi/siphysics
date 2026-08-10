@@ -16,7 +16,13 @@ ECS_COMPONENT_DECLARE_CPP(
 
 ECS_COMPONENT_DECLARE_CPP(
     Velocity,
-    ECS_CPP_FIELDS(float x; float y; float angular;),
+    ECS_CPP_FIELDS(float x; float y;),
+    ECS_CPP_METHODS()
+);
+
+ECS_COMPONENT_DECLARE_CPP(
+    AngularVelocity,
+    ECS_CPP_FIELDS(float value;),
     ECS_CPP_METHODS()
 );
 

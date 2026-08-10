@@ -30,6 +30,8 @@ ECS_MODULE_DECLARE(siphysics, {
     SipSettings settings;
 });
 
+extern ecs_phase_t siphysics_phase;
+
 #ifdef __cplusplus
 }
 #endif

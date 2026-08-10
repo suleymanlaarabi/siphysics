@@ -4,7 +4,7 @@
 ECS_RESOURCE_DEFINE(SipSettings);
 ECS_MODULE_DEFINE(siphysics);
 
-static ecs_phase_t siphysics_phase = ECS_PHASE_NONE;
+ecs_phase_t siphysics_phase = ECS_PHASE_NONE;
 
 void siphysics_import(const siphysics_props_t *props) {
     ECS_COMPONENT_REGISTER(
