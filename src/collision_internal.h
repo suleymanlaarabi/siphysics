@@ -2,6 +2,11 @@
 #define SIPHYSICS_COLLISION_INTERNAL_H
 
 #include <stdbool.h>
+#include <stdint.h>
+
+#if defined(__SSE__)
+#include <xmmintrin.h>
+#endif
 
 typedef struct SipContact {
     float normal_x;
@@ -35,6 +40,36 @@ static inline float sip_clampf(float value, float minimum, float maximum) {
 
 static inline float sip_absf(float value) {
     return value < 0.0f ? -value : value;
+}
+
+static inline float sip_sqrtf(float value) {
+#if defined(__SSE__)
+    return _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(value)));
+#else
+    float estimate = value > 1.0f ? value : 1.0f;
+    for (uint32_t i = 0; i < 8; i++) {
+        estimate = (estimate + value / estimate) * 0.5f;
+    }
+    return estimate;
+#endif
+}
+
+static inline void sip_sincosf(float angle, float *restrict sine, float *restrict cosine) {
+    const float half_pi = 1.57079632679489661923f;
+    const int32_t quadrant = (int32_t)(angle / half_pi + (angle >= 0.0f ? 0.5f : -0.5f));
+    const float x = angle - (float)quadrant * half_pi;
+    const float x2 = x * x;
+    const float x4 = x2 * x2;
+    const float x6 = x4 * x2;
+    const float x8 = x4 * x4;
+    const float base_sine = x * (1.0f - x2 * (1.0f / 6.0f) + x4 * (1.0f / 120.0f) - x6 * (1.0f / 5040.0f));
+    const float base_cosine = 1.0f - x2 * 0.5f + x4 * (1.0f / 24.0f) - x6 * (1.0f / 720.0f) + x8 * (1.0f / 40320.0f);
+    switch (quadrant & 3) {
+        case 0: *sine = base_sine; *cosine = base_cosine; break;
+        case 1: *sine = base_cosine; *cosine = -base_sine; break;
+        case 2: *sine = -base_sine; *cosine = -base_cosine; break;
+        default: *sine = -base_cosine; *cosine = base_sine; break;
+    }
 }
 
 static inline void sip_obb_support(

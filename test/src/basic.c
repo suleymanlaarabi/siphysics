@@ -19,6 +19,9 @@ void basic_module_and_defaults(void) {
                 .fixed_dt = 0.5f,
                 .max_frame_dt = 3.0f,
                 .max_substeps = 4,
+                .solver_iterations = 3,
+                .penetration_slop = 0.01f,
+                .penetration_correction = 0.7f,
             },
         }
     );
@@ -29,6 +32,9 @@ void basic_module_and_defaults(void) {
     test_assert(settings->fixed_dt == 0.5f);
     test_assert(settings->max_frame_dt == 3.0f);
     test_int(4, settings->max_substeps);
+    test_int(3, settings->solver_iterations);
+    test_assert(settings->penetration_slop == 0.01f);
+    test_assert(settings->penetration_correction == 0.7f);
     ecs_fini();
 
     ecs_init();
@@ -39,6 +45,9 @@ void basic_module_and_defaults(void) {
     test_assert(settings->fixed_dt == 1.0f / 60.0f);
     test_assert(settings->max_frame_dt == 0.25f);
     test_int(8, settings->max_substeps);
+    test_int(6, settings->solver_iterations);
+    test_assert(settings->penetration_slop == 0.005f);
+    test_assert(settings->penetration_correction == 0.8f);
     ecs_fini();
 }
 

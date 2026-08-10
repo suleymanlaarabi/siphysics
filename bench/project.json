@@ -5,7 +5,8 @@
     "public": false,
     "author": "Jane Doe",
     "description": "SiPhysics narrowphase micro-benchmarks",
-    "clangd": true
+    "clangd": true,
+    "use": ["siphysics"]
   },
   "lang.c": {
     "c-standard": "c17"

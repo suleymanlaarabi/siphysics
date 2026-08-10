@@ -26,6 +26,17 @@
           "box_box",
           "ecs_requirements"
         ]
+      },
+      {
+        "id": "collision_pipeline",
+        "testcases": [
+          "circle_box",
+          "all_shapes",
+          "sensor_filter",
+          "invalid_archetypes",
+          "dynamic_kinematic_masses",
+          "gravity_delta_time"
+        ]
       }
     ]
   },

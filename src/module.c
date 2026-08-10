@@ -2,6 +2,8 @@
 #include "siphysics/physics.h"
 
 ECS_RESOURCE_DEFINE(SipSettings);
+ECS_RESOURCE_DEFINE(SipCollisionStats);
+ECS_RESOURCE_DEFINE(SipCollisionRuntime, .ops.dtor = sip_collision_runtime_destroy);
 ECS_MODULE_DEFINE(siphysics);
 
 ecs_phase_t siphysics_phase = ECS_PHASE_NONE;
@@ -51,8 +53,21 @@ void siphysics_import(const siphysics_props_t *props) {
                                                             .fixed_dt = 1.0f / 60.0f,
                                                             .max_frame_dt = 0.25f,
                                                             .max_substeps = 8,
+                                                            .solver_iterations = 6,
+                                                            .penetration_slop = 0.005f,
+                                                            .penetration_correction = 0.8f,
                                                         };
     ecs_set_resource_rid(ecs_id(SipSettings), &settings);
+    ECS_RESOURCE_REGISTER(SipCollisionStats);
+    ecs_set_resource(SipCollisionStats, {
+        .proxy_count = 0,
+        .candidate_count = 0,
+        .contact_count = 0,
+        .scratch_growth_count = 0,
+    });
+    ECS_RESOURCE_REGISTER(SipCollisionRuntime);
+    SipCollisionRuntime runtime = {0};
+    ecs_set_resource_rid(ecs_id(SipCollisionRuntime), &runtime);
 
     siphysics_phase = ecs_phase_init(&(ecs_phase_desc_t){
         .name = "siphysics",
@@ -61,4 +76,5 @@ void siphysics_import(const siphysics_props_t *props) {
     });
 
     siphysics_register_systems();
+    siphysics_collision_init();
 }

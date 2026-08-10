@@ -6,8 +6,15 @@
 #include <stdlib.h>
 #include <time.h>
 
+#define SIPHYSICS_BENCHMARK
 #include "../../src/collision_internal.h"
+#include "../../src/collision_runtime.h"
 #include "../../src/collision_narrowphase.c"
+#include "../../src/collision_runtime.c"
+#include "../../src/collision_broadphase.c"
+#include "../../src/collision_solver.c"
+#include "../../src/collision_pipeline.c"
+#include <siphysics/physics.h>
 
 enum { sip_bench_count = 1000000 };
 
@@ -31,6 +38,11 @@ typedef struct BoxPair {
     SipObb a;
     SipObb b;
 } BoxPair;
+
+typedef struct BenchBodyHot {
+    Position position;
+    Velocity velocity;
+} BenchBodyHot;
 
 static uint64_t now_ns(void) {
     struct timespec time;
@@ -124,6 +136,48 @@ static void print_result(const char *name, uint64_t elapsed, uint64_t hits, doub
     );
 }
 
+/* Benchmark-only AoS comparison: includes input and output copies, never used by production. */
+static void benchmark_aos_copy(uint32_t capacity) {
+    BenchBodyHot *body_hot = malloc(sizeof(*body_hot) * capacity);
+    ecs_query_id_t query = ecs_query({
+        .terms = {
+            ecs_inout(Position),
+            ecs_inout(Velocity),
+            ecs_in(CircleCollider),
+            ecs_filter(Dynamic),
+            ecs_not(Kinematic),
+            ecs_not(Static),
+            ecs_not(BoxCollider),
+        }
+    });
+    uint32_t count = 0;
+    const uint64_t start = now_ns();
+    ecs_iter_t it = ecs_query_iter(query);
+    while (ecs_iter_next(&it)) {
+        Position *positions = ecs_field(&it, 0);
+        Velocity *velocities = ecs_field(&it, 1);
+        for (uint32_t row = 0; row < it.count; row++) {
+            body_hot[count++] = (BenchBodyHot){ positions[row], velocities[row] };
+        }
+    }
+    it = ecs_query_iter(query);
+    uint32_t row_count = 0;
+    while (ecs_iter_next(&it)) {
+        Position *positions = ecs_field(&it, 0);
+        Velocity *velocities = ecs_field(&it, 1);
+        for (uint32_t row = 0; row < it.count; row++) {
+            const BenchBodyHot body = body_hot[row_count++];
+            positions[row] = body.position;
+            velocities[row] = body.velocity;
+        }
+    }
+    const uint64_t elapsed = now_ns() - start;
+    printf("AoS copy comparison: %.2f ns/body (input+output), bodies=%u\n",
+           count ? (double)elapsed / (double)count : 0.0, count);
+    ecs_query_fini(query);
+    free(body_hot);
+}
+
 static void benchmark_circle_circle(const CirclePair *pairs) {
     uint64_t hits = 0;
     double checksum = 0.0;
@@ -168,6 +222,102 @@ static void benchmark_box_box(const BoxPair *pairs) {
     print_result("Box/Box", now_ns() - start, hits, checksum);
 }
 
+static void benchmark_pipeline_scale(uint32_t count) {
+    ecs_init();
+    ECS_MODULE_IMPORT(
+        siphysics,
+        {
+            .use_custom_settings = true,
+            .settings = {
+                .gravity_x = 0.0f,
+                .gravity_y = 0.0f,
+                .fixed_dt = 1.0f / 60.0f,
+                .max_frame_dt = 0.25f,
+                .max_substeps = 8,
+                .solver_iterations = 6,
+                .penetration_slop = 0.005f,
+                .penetration_correction = 0.8f,
+            },
+        }
+    );
+
+    for (uint32_t i = 0; i < count; i++) {
+        const float x = (float)i * 4.0f;
+        const bool box = (i & 3u) == 0u;
+        ecs_entity_t dynamic = ecs_new();
+        ecs_add(dynamic, Dynamic);
+        if (box) {
+            ecs_add(dynamic, BoxCollider);
+            ecs_set(dynamic, Rotation, { .angle = (float)(i & 15u) * 0.1f });
+        } else {
+            ecs_add(dynamic, CircleCollider);
+        }
+        ecs_set(dynamic, Position, { .x = x, .y = 0.0f });
+
+        ecs_entity_t static_body = ecs_new();
+        ecs_add(static_body, Static);
+        if (box) {
+            ecs_add(static_body, BoxCollider);
+            ecs_set(static_body, Rotation, { .angle = (float)(i & 7u) * -0.08f });
+        } else {
+            ecs_add(static_body, CircleCollider);
+        }
+        ecs_set(static_body, Position, { .x = x + 0.75f, .y = 0.0f });
+    }
+
+    SipCollisionRuntime *runtime = ecs_get_resource(SipCollisionRuntime);
+    const SipSettings *settings = ecs_get_resource_read(SipSettings);
+    for (uint32_t warmup = 0; warmup < 2; warmup++) {
+        sip_collision_collect(runtime);
+        sip_broadphase(runtime);
+        sip_collision_narrowphase(runtime);
+    }
+    const uint64_t warmup_growth = runtime->growth_count;
+
+    sip_collision_runtime_reset(runtime);
+    const uint64_t total_start = now_ns();
+    const uint64_t proxy_start = now_ns();
+    sip_collision_collect(runtime);
+    const uint64_t proxy_elapsed = now_ns() - proxy_start;
+    const uint64_t sort_start = now_ns();
+    sip_radix_sort(runtime);
+    const uint64_t sort_elapsed = now_ns() - sort_start;
+    const uint64_t sap_start = now_ns();
+    sip_generate_pairs(runtime);
+    const uint64_t sap_elapsed = now_ns() - sap_start;
+    const uint64_t narrow_start = now_ns();
+    sip_collision_narrowphase(runtime);
+    const uint64_t narrow_elapsed = now_ns() - narrow_start;
+    const uint64_t solver_start = now_ns();
+    sip_collision_solve(runtime, settings);
+    const uint64_t solver_elapsed = now_ns() - solver_start;
+    const uint64_t total_elapsed = now_ns() - total_start;
+    const uint32_t candidates = runtime->circle_circle_count + runtime->circle_box_count +
+                                runtime->box_box_count;
+    printf(
+        "Pipeline %u: proxy %.2f ns/body, sort %.2f ns/body, SAP %.2f ns/body, "
+        "narrow %.2f ns/candidate, solver %.2f ns/contact, total %.2f ns/body, "
+        "proxies=%u candidates=%u contacts=%u growth=%" PRIu64 "->%" PRIu64 " (delta=%" PRIu64 ")\n",
+        count,
+        (double)proxy_elapsed / (double)count,
+        (double)sort_elapsed / (double)count,
+        (double)sap_elapsed / (double)count,
+        candidates ? (double)narrow_elapsed / (double)candidates : 0.0,
+        runtime->contact_count ? (double)solver_elapsed / (double)runtime->contact_count : 0.0,
+        (double)total_elapsed / (double)count,
+        runtime->proxy_count,
+        candidates,
+        runtime->contact_count,
+        warmup_growth,
+        runtime->growth_count,
+        runtime->growth_count - warmup_growth
+    );
+    if (count == 100000) {
+        benchmark_aos_copy(count);
+    }
+    ecs_fini();
+}
+
 int main(void) {
     CirclePair *circle_pairs = malloc(sizeof(*circle_pairs) * sip_bench_count);
     CircleBoxPair *circle_box_pairs = malloc(sizeof(*circle_box_pairs) * sip_bench_count);
@@ -183,6 +333,12 @@ int main(void) {
         benchmark_circle_box(circle_box_pairs);
         benchmark_box_box(box_pairs);
     }
+
+    printf("[ECS pipeline scales]\n");
+    benchmark_pipeline_scale(1000);
+    benchmark_pipeline_scale(10000);
+    benchmark_pipeline_scale(50000);
+    benchmark_pipeline_scale(100000);
 
     free(box_pairs);
     free(circle_box_pairs);

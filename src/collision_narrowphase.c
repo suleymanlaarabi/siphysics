@@ -1,20 +1,5 @@
 #include "collision_internal.h"
 
-#if defined(__SSE__)
-#include <xmmintrin.h>
-static inline float sqrtf(float value) {
-    return _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(value)));
-}
-#else
-static inline float sqrtf(float value) {
-    float estimate = value > 1.0f ? value : 1.0f;
-    for (int i = 0; i < 8; i++) {
-        estimate = (estimate + value / estimate) * 0.5f;
-    }
-    return estimate;
-}
-#endif
-
 bool sip_circle_circle(
     float ax,
     float ay,
@@ -43,7 +28,7 @@ bool sip_circle_circle(
         return true;
     }
 
-    const float distance = sqrtf(distance_squared);
+    const float distance = sip_sqrtf(distance_squared);
     const float normal_x = dx / distance;
     const float normal_y = dy / distance;
     out->normal_x = normal_x;
@@ -80,7 +65,7 @@ bool sip_circle_box(
     }
 
     if (distance_squared != 0.0f) {
-        const float distance = sqrtf(distance_squared);
+        const float distance = sip_sqrtf(distance_squared);
         const float normal_x = to_box_x / distance;
         const float normal_y = to_box_y / distance;
         out->normal_x = normal_x;
