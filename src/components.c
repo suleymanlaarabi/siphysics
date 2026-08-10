@@ -22,3 +22,4 @@ ECS_TAG_DEFINE(Static);
 ECS_TAG_DEFINE(Kinematic);
 ECS_TAG_DEFINE(Dynamic);
 ECS_TAG_DEFINE(Sensor);
+ECS_TAG_DEFINE(CollisionEvents);

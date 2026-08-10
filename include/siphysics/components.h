@@ -90,6 +90,7 @@ ECS_TAG_DECLARE(Static);
 ECS_TAG_DECLARE(Kinematic);
 ECS_TAG_DECLARE(Dynamic);
 ECS_TAG_DECLARE(Sensor);
+ECS_TAG_DECLARE(CollisionEvents);
 
 #ifdef __cplusplus
 }

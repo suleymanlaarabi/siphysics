@@ -103,7 +103,8 @@ void sip_generate_pairs(SipCollisionRuntime *runtime) {
                 break;
             }
             if (b->max_y < a->min_y || b->min_y > a->max_y ||
-                (a->body_type == SIP_BODY_STATIC && b->body_type == SIP_BODY_STATIC) ||
+                (a->body_type == SIP_BODY_STATIC && b->body_type == SIP_BODY_STATIC &&
+                 !a->sensor && !b->sensor) ||
                 !(a->layer & b->mask) || !(b->layer & a->mask)) {
                 continue;
             }

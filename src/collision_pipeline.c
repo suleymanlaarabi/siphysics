@@ -10,7 +10,6 @@ typedef struct SipQueryLayout {
     uint8_t shape;
     uint8_t material;
     uint8_t filter;
-    uint8_t sensor;
 } SipQueryLayout;
 
 static void sip_reserve_batch(SipCollisionRuntime *runtime, uint32_t needed) {
@@ -41,6 +40,24 @@ static void sip_reserve_proxy(SipCollisionRuntime *runtime, uint32_t needed) {
     runtime->growth_count++;
 }
 
+static void sip_reserve_event_pairs(SipCollisionRuntime *runtime, uint32_t needed) {
+    if (needed <= runtime->event_pair_capacity) {
+        return;
+    }
+    uint32_t capacity = runtime->event_pair_capacity ? runtime->event_pair_capacity * 2 : 64;
+    while (capacity < needed) {
+        capacity *= 2;
+    }
+    runtime->previous_pairs = realloc(
+        runtime->previous_pairs, sizeof(*runtime->previous_pairs) * capacity);
+    runtime->current_pairs = realloc(
+        runtime->current_pairs, sizeof(*runtime->current_pairs) * capacity);
+    runtime->event_pair_scratch = realloc(
+        runtime->event_pair_scratch, sizeof(*runtime->event_pair_scratch) * capacity);
+    runtime->event_pair_capacity = capacity;
+    runtime->growth_count++;
+}
+
 static SipObb sip_box_from_batch(const SipBatchRef *batch, uint32_t row,
                                  const SipBoxGeom *geom) {
     const Position *position = &batch->positions[row];
@@ -59,7 +76,7 @@ static SipObb sip_box_from_batch(const SipBatchRef *batch, uint32_t row,
 
 static void sip_collect_batch(SipCollisionRuntime *runtime, ecs_iter_t *it,
                               const SipQueryLayout *layout, uint8_t shape,
-                              uint8_t body_type) {
+                              uint8_t body_type, bool sensor, bool events) {
     SipBatchRef *batch;
     sip_reserve_batch(runtime, runtime->batch_count + 1);
     batch = &runtime->batches[runtime->batch_count++];
@@ -71,10 +88,12 @@ static void sip_collect_batch(SipCollisionRuntime *runtime, ecs_iter_t *it,
     batch->boxes = shape == SIP_SHAPE_BOX ? ecs_field(it, layout->shape) : NULL;
     batch->materials = ecs_field(it, layout->material);
     batch->filters = ecs_field(it, layout->filter);
+    batch->entities = it->entities;
     batch->count = it->count;
     batch->shape = shape;
     batch->body_type = body_type;
-    batch->sensor = ecs_field_kind(it, layout->sensor) != EcsFieldNone;
+    batch->sensor = sensor;
+    batch->event_enabled = events;
 
     for (uint32_t row = 0; row < batch->count; row++) {
         sip_reserve_proxy(runtime, runtime->proxy_count + 1);
@@ -88,6 +107,8 @@ static void sip_collect_batch(SipCollisionRuntime *runtime, ecs_iter_t *it,
         proxy->mask = filter->mask;
         proxy->shape = shape;
         proxy->body_type = body_type;
+        proxy->sensor = batch->sensor;
+        proxy->event_interest = batch->event_enabled;
         proxy->box_geom_index = UINT32_MAX;
 
         if (shape == SIP_SHAPE_CIRCLE) {
@@ -123,19 +144,19 @@ static void sip_collect_batch(SipCollisionRuntime *runtime, ecs_iter_t *it,
 
 static void sip_collect_query(SipCollisionRuntime *runtime, ecs_query_id_t query,
                               const SipQueryLayout *layout, uint8_t shape,
-                              uint8_t body_type) {
+                              uint8_t body_type, bool sensor, bool events) {
     ecs_iter_t it = ecs_query_iter(query);
     while (ecs_iter_next(&it)) {
-        sip_collect_batch(runtime, &it, layout, shape, body_type);
+        sip_collect_batch(runtime, &it, layout, shape, body_type, sensor, events);
     }
 }
 
-static const SipQueryLayout sip_dynamic_circle_layout = { 0, 1, 2, UINT8_MAX, 3, 4, 5, 6 };
-static const SipQueryLayout sip_kinematic_circle_layout = { 0, 1, UINT8_MAX, UINT8_MAX, 2, 3, 4, 5 };
-static const SipQueryLayout sip_static_circle_layout = { 0, UINT8_MAX, UINT8_MAX, UINT8_MAX, 1, 2, 3, 4 };
-static const SipQueryLayout sip_dynamic_box_layout = { 0, 1, 2, 3, 4, 5, 6, 7 };
-static const SipQueryLayout sip_kinematic_box_layout = { 0, 1, UINT8_MAX, 2, 3, 4, 5, 6 };
-static const SipQueryLayout sip_static_box_layout = { 0, UINT8_MAX, UINT8_MAX, 1, 2, 3, 4, 5 };
+static const SipQueryLayout sip_dynamic_circle_layout = { 0, 1, 2, UINT8_MAX, 3, 4, 5 };
+static const SipQueryLayout sip_kinematic_circle_layout = { 0, 1, UINT8_MAX, UINT8_MAX, 2, 3, 4 };
+static const SipQueryLayout sip_static_circle_layout = { 0, UINT8_MAX, UINT8_MAX, UINT8_MAX, 1, 2, 3 };
+static const SipQueryLayout sip_dynamic_box_layout = { 0, 1, 2, 3, 4, 5, 6 };
+static const SipQueryLayout sip_kinematic_box_layout = { 0, 1, UINT8_MAX, 2, 3, 4, 5 };
+static const SipQueryLayout sip_static_box_layout = { 0, UINT8_MAX, UINT8_MAX, 1, 2, 3, 4 };
 
 static void sip_contact_material(const SipBatchRef *a, uint32_t row_a,
                                  const SipBatchRef *b, uint32_t row_b,
@@ -174,6 +195,38 @@ static void sip_add_contact(SipCollisionRuntime *runtime, const SipProxy *proxy_
     contact->body_type_a = proxy_a->body_type;
     contact->body_type_b = proxy_b->body_type;
     sip_contact_material(batch_a, proxy_a->row, batch_b, proxy_b->row, contact);
+
+    if (proxy_a->event_interest || proxy_b->event_interest) {
+        sip_reserve_event_pairs(runtime, runtime->current_event_pair_count + 1);
+        const ecs_entity_t entity_a = batch_a->entities[proxy_a->row];
+        const ecs_entity_t entity_b = batch_b->entities[proxy_b->row];
+        SipEventPair *pair = &runtime->current_pairs[runtime->current_event_pair_count++];
+        if (entity_a < entity_b) {
+            *pair = (SipEventPair){
+                .a = entity_a,
+                .b = entity_b,
+                .normal_x = geometry->normal_x,
+                .normal_y = geometry->normal_y,
+                .point_x = geometry->point_x,
+                .point_y = geometry->point_y,
+                .penetration = geometry->penetration,
+                .interest_a = proxy_a->event_interest,
+                .interest_b = proxy_b->event_interest,
+            };
+        } else {
+            *pair = (SipEventPair){
+                .a = entity_b,
+                .b = entity_a,
+                .normal_x = -geometry->normal_x,
+                .normal_y = -geometry->normal_y,
+                .point_x = geometry->point_x,
+                .point_y = geometry->point_y,
+                .penetration = geometry->penetration,
+                .interest_a = proxy_b->event_interest,
+                .interest_b = proxy_a->event_interest,
+            };
+        }
+    }
 }
 
 static void narrow_cc(SipCollisionRuntime *runtime) {
@@ -234,18 +287,27 @@ static void narrow_bb(SipCollisionRuntime *runtime) {
 void sip_collision_collect(SipCollisionRuntime *runtime) {
     sip_collision_runtime_reset(runtime);
 
-    sip_collect_query(runtime, runtime->queries[0], &sip_dynamic_circle_layout,
-                      SIP_SHAPE_CIRCLE, SIP_BODY_DYNAMIC);
-    sip_collect_query(runtime, runtime->queries[1], &sip_kinematic_circle_layout,
-                      SIP_SHAPE_CIRCLE, SIP_BODY_KINEMATIC);
-    sip_collect_query(runtime, runtime->queries[2], &sip_static_circle_layout,
-                      SIP_SHAPE_CIRCLE, SIP_BODY_STATIC);
-    sip_collect_query(runtime, runtime->queries[3], &sip_dynamic_box_layout,
-                      SIP_SHAPE_BOX, SIP_BODY_DYNAMIC);
-    sip_collect_query(runtime, runtime->queries[4], &sip_kinematic_box_layout,
-                      SIP_SHAPE_BOX, SIP_BODY_KINEMATIC);
-    sip_collect_query(runtime, runtime->queries[5], &sip_static_box_layout,
-                      SIP_SHAPE_BOX, SIP_BODY_STATIC);
+    const SipQueryLayout *layouts[] = {
+        &sip_dynamic_circle_layout, &sip_kinematic_circle_layout,
+        &sip_static_circle_layout, &sip_dynamic_box_layout,
+        &sip_kinematic_box_layout, &sip_static_box_layout,
+    };
+    const uint8_t shapes[] = {
+        SIP_SHAPE_CIRCLE, SIP_SHAPE_CIRCLE, SIP_SHAPE_CIRCLE,
+        SIP_SHAPE_BOX, SIP_SHAPE_BOX, SIP_SHAPE_BOX,
+    };
+    const uint8_t body_types[] = {
+        SIP_BODY_DYNAMIC, SIP_BODY_KINEMATIC, SIP_BODY_STATIC,
+        SIP_BODY_DYNAMIC, SIP_BODY_KINEMATIC, SIP_BODY_STATIC,
+    };
+    for (uint32_t base = 0; base < 6; base++) {
+        for (uint32_t flags = 0; flags < 4; flags++) {
+            const bool sensor = (flags & 2u) != 0;
+            const bool events = (flags & 1u) != 0;
+            sip_collect_query(runtime, runtime->queries[base * 4 + flags], layouts[base],
+                              shapes[base], body_types[base], sensor, events);
+        }
+    }
 }
 
 void sip_collision_narrowphase(SipCollisionRuntime *runtime) {
@@ -259,14 +321,19 @@ void siphysics_collision_step(ecs_iter_t *it) {
     SipCollisionRuntime *runtime = ecs_get_resource(SipCollisionRuntime);
     SipCollisionStats *stats = ecs_get_resource(SipCollisionStats);
     const SipSettings *settings = ecs_get_resource_read(SipSettings);
+    const SipCollisionCapacity *capacity = ecs_get_resource_read(SipCollisionCapacity);
+    sip_collision_runtime_reserve(runtime, capacity);
     sip_collision_collect(runtime);
     sip_broadphase(runtime);
     sip_collision_narrowphase(runtime);
     sip_collision_solve(runtime, settings);
+    sip_collision_event_diff(runtime);
 
     stats->proxy_count = runtime->proxy_count;
     stats->candidate_count = runtime->circle_circle_count + runtime->circle_box_count +
                              runtime->box_box_count;
     stats->contact_count = runtime->contact_count;
+    stats->event_pair_count = runtime->current_event_pair_count;
+    stats->event_dispatch_count = runtime->event_dispatch_count;
     stats->scratch_growth_count = runtime->growth_count;
 }

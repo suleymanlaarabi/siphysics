@@ -35,7 +35,20 @@ ECS_RESOURCE_DECLARE_CPP(
         uint32_t proxy_count;
         uint32_t candidate_count;
         uint32_t contact_count;
+        uint32_t event_pair_count;
+        uint32_t event_dispatch_count;
         uint64_t scratch_growth_count;
+    ),
+    ECS_CPP_METHODS()
+);
+
+ECS_RESOURCE_DECLARE_CPP(
+    SipCollisionCapacity,
+    ECS_CPP_FIELDS(
+        uint32_t proxy_capacity;
+        uint32_t pair_capacity;
+        uint32_t contact_capacity;
+        uint32_t event_pair_capacity;
     ),
     ECS_CPP_METHODS()
 );

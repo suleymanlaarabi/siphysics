@@ -2,6 +2,7 @@
 #define SIPHYSICS_COLLISION_RUNTIME_H
 
 #include "collision_internal.h"
+#include "siphysics/collision.h"
 #include "siphysics/components.h"
 #include "siphysics/physics.h"
 #include <stdbool.h>
@@ -34,10 +35,12 @@ typedef struct SipBatchRef {
     const BoxCollider *boxes;
     const CollisionMaterial *materials;
     const CollisionFilter *filters;
+    ecs_entity_t *entities;
     uint32_t count;
     uint8_t shape;
     uint8_t body_type;
     uint8_t sensor;
+    uint8_t event_enabled;
 } SipBatchRef;
 
 typedef struct SipProxy {
@@ -55,7 +58,8 @@ typedef struct SipProxy {
 
     uint8_t shape;
     uint8_t body_type;
-    uint16_t _pad;
+    uint8_t sensor;
+    uint8_t event_interest;
 } SipProxy;
 
 typedef struct SipPair {
@@ -84,6 +88,23 @@ typedef struct SipSolverContact {
     uint8_t sensor;
 } SipSolverContact;
 
+_Static_assert(sizeof(SipSolverContact) <= 64,
+               "SipSolverContact must remain compact for solver bandwidth");
+
+typedef struct SipEventPair {
+    ecs_entity_t a;
+    ecs_entity_t b;
+
+    float normal_x;
+    float normal_y;
+    float point_x;
+    float point_y;
+    float penetration;
+
+    uint8_t interest_a;
+    uint8_t interest_b;
+} SipEventPair;
+
 ECS_RESOURCE_DECLARE(SipCollisionRuntime, {
     SipProxy *proxies;
     uint32_t proxy_count;
@@ -110,7 +131,15 @@ ECS_RESOURCE_DECLARE(SipCollisionRuntime, {
     uint32_t contact_count;
     uint32_t contact_capacity;
 
-    ecs_query_id_t queries[6];
+    SipEventPair *previous_pairs;
+    uint32_t previous_event_pair_count;
+    SipEventPair *current_pairs;
+    uint32_t current_event_pair_count;
+    SipEventPair *event_pair_scratch;
+    uint32_t event_pair_capacity;
+
+    ecs_query_id_t queries[24];
+    uint32_t event_dispatch_count;
     uint64_t growth_count;
 });
 
@@ -127,5 +156,8 @@ void sip_generate_pairs(SipCollisionRuntime *runtime);
 void sip_collision_collect(SipCollisionRuntime *runtime);
 void sip_collision_narrowphase(SipCollisionRuntime *runtime);
 void sip_collision_solve(SipCollisionRuntime *runtime, const SipSettings *settings);
+void sip_collision_runtime_reserve(SipCollisionRuntime *runtime,
+                                   const SipCollisionCapacity *capacity);
+void sip_collision_event_diff(SipCollisionRuntime *runtime);
 
 #endif

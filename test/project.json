@@ -37,6 +37,16 @@
           "dynamic_kinematic_masses",
           "gravity_delta_time"
         ]
+      },
+      {
+        "id": "collision_events",
+        "testcases": [
+          "lifecycle",
+          "interest",
+          "sensor",
+          "removed_entities",
+          "capacity"
+        ]
       }
     ]
   },

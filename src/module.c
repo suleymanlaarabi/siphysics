@@ -1,8 +1,10 @@
 #include "internal.h"
+#include "siphysics/collision.h"
 #include "siphysics/physics.h"
 
 ECS_RESOURCE_DEFINE(SipSettings);
 ECS_RESOURCE_DEFINE(SipCollisionStats);
+ECS_RESOURCE_DEFINE(SipCollisionCapacity);
 ECS_RESOURCE_DEFINE(SipCollisionRuntime, .ops.dtor = sip_collision_runtime_destroy);
 ECS_MODULE_DEFINE(siphysics);
 
@@ -24,7 +26,8 @@ void siphysics_import(const siphysics_props_t *props) {
         Static,
         Kinematic,
         Dynamic,
-        Sensor
+        Sensor,
+        CollisionEvents
     );
 
     ecs_with(Static, Position, Rotation);
@@ -63,11 +66,24 @@ void siphysics_import(const siphysics_props_t *props) {
         .proxy_count = 0,
         .candidate_count = 0,
         .contact_count = 0,
+        .event_pair_count = 0,
+        .event_dispatch_count = 0,
         .scratch_growth_count = 0,
+    });
+    ECS_RESOURCE_REGISTER(SipCollisionCapacity);
+    ecs_set_resource(SipCollisionCapacity, {
+        .proxy_capacity = 256,
+        .pair_capacity = 512,
+        .contact_capacity = 256,
+        .event_pair_capacity = 128,
     });
     ECS_RESOURCE_REGISTER(SipCollisionRuntime);
     SipCollisionRuntime runtime = {0};
     ecs_set_resource_rid(ecs_id(SipCollisionRuntime), &runtime);
+
+    ecs_event_register(&SipCollisionEnter);
+    ecs_event_register(&SipCollisionStay);
+    ecs_event_register(&SipCollisionExit);
 
     siphysics_phase = ecs_phase_init(&(ecs_phase_desc_t){
         .name = "siphysics",

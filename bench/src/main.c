@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #define SIPHYSICS_BENCHMARK
@@ -14,7 +15,8 @@
 #include "../../src/collision_broadphase.c"
 #include "../../src/collision_solver.c"
 #include "../../src/collision_pipeline.c"
-#include <siphysics/physics.h>
+#include "../../src/collision_events.c"
+#include <siphysics.h>
 
 enum { sip_bench_count = 1000000 };
 
@@ -134,6 +136,191 @@ static void print_result(const char *name, uint64_t elapsed, uint64_t hits, doub
         hits,
         checksum
     );
+}
+
+static int compare_event_pairs(const void *left, const void *right) {
+    const SipEventPair *a = left;
+    const SipEventPair *b = right;
+    if (a->a != b->a) {
+        return a->a < b->a ? -1 : 1;
+    }
+    return a->b != b->b ? (a->b < b->b ? -1 : 1) : 0;
+}
+
+static void radix_event_pairs(SipEventPair *pairs, SipEventPair *scratch, uint32_t count) {
+    SipEventPair *source = pairs;
+    SipEventPair *destination = scratch;
+    for (uint32_t key = 0; key < 2; key++) {
+        for (uint32_t shift = 0; shift < 64; shift += 8) {
+            uint32_t counts[256] = {0};
+            for (uint32_t i = 0; i < count; i++) {
+                const ecs_entity_t value = key == 0 ? source[i].b : source[i].a;
+                counts[(value >> shift) & 0xffu]++;
+            }
+            uint32_t offsets[256];
+            uint32_t offset = 0;
+            for (uint32_t i = 0; i < 256; i++) {
+                offsets[i] = offset;
+                offset += counts[i];
+            }
+            for (uint32_t i = 0; i < count; i++) {
+                const ecs_entity_t value = key == 0 ? source[i].b : source[i].a;
+                const uint32_t bucket = (value >> shift) & 0xffu;
+                destination[offsets[bucket]++] = source[i];
+            }
+            SipEventPair *temporary = source;
+            source = destination;
+            destination = temporary;
+        }
+    }
+    if (source != pairs) {
+        memcpy(pairs, source, sizeof(*pairs) * count);
+    }
+}
+
+static void benchmark_event_pair_sort(void) {
+    const uint32_t sizes[] = { 1000, 10000, 100000 };
+    printf("[event pair sort: qsort vs radix]\n");
+    for (uint32_t size_index = 0; size_index < 3; size_index++) {
+        const uint32_t count = sizes[size_index];
+        SipEventPair *pairs = malloc(sizeof(*pairs) * count);
+        SipEventPair *copy = malloc(sizeof(*copy) * count);
+        SipEventPair *scratch = malloc(sizeof(*scratch) * count);
+        for (uint32_t i = 0; i < count; i++) {
+            pairs[i].a = (ecs_entity_t)((count - i) * 2u);
+            pairs[i].b = (ecs_entity_t)((count - i) * 2u + 1u);
+        }
+        memcpy(copy, pairs, sizeof(*pairs) * count);
+        const uint64_t qsort_start = now_ns();
+        qsort(copy, count, sizeof(*copy), compare_event_pairs);
+        const uint64_t qsort_elapsed = now_ns() - qsort_start;
+        const uint64_t radix_start = now_ns();
+        radix_event_pairs(pairs, scratch, count);
+        const uint64_t radix_elapsed = now_ns() - radix_start;
+        printf("pairs=%u qsort=%.2f ns/pair radix=%.2f ns/pair\n", count,
+               (double)qsort_elapsed / count, (double)radix_elapsed / count);
+        free(scratch);
+        free(copy);
+        free(pairs);
+    }
+}
+
+static uint32_t benchmark_event_callbacks;
+
+static void benchmark_event_observer(ecs_observer_event_t *event) {
+    (void)event;
+    benchmark_event_callbacks++;
+}
+
+static void benchmark_event_archetypes(uint32_t count, uint32_t mode) {
+    ecs_init();
+    ECS_MODULE_IMPORT(siphysics, { .use_custom_settings = true, .settings = {
+        .gravity_x = 0.0f, .gravity_y = 0.0f, .fixed_dt = 1.0f / 60.0f,
+        .max_frame_dt = 0.25f, .max_substeps = 8, .solver_iterations = 6,
+        .penetration_slop = 0.005f, .penetration_correction = 0.8f,
+    }});
+    ecs_set_resource(SipCollisionCapacity, {
+        .proxy_capacity = count, .pair_capacity = count,
+        .contact_capacity = count, .event_pair_capacity = count,
+    });
+    if (mode == 2) {
+        ecs_observer({
+            .on = SipCollisionEnter,
+            .query.terms = { ecs_in(CollisionEvents) },
+            .callback = benchmark_event_observer,
+        });
+        ecs_observer({
+            .on = SipCollisionStay,
+            .query.terms = { ecs_in(CollisionEvents) },
+            .callback = benchmark_event_observer,
+        });
+        ecs_observer({
+            .on = SipCollisionExit,
+            .query.terms = { ecs_in(CollisionEvents) },
+            .callback = benchmark_event_observer,
+        });
+    }
+    for (uint32_t i = 0; i < count / 2; i++) {
+        for (uint32_t side = 0; side < 2; side++) {
+            ecs_entity_t entity = ecs_new();
+            ecs_add(entity, Kinematic);
+            ecs_add(entity, CircleCollider);
+            if (mode == 2 || (mode == 1 && ((i * 2u + side) % 10u == 0u))) {
+                ecs_add(entity, CollisionEvents);
+            }
+            ecs_set(entity, Position, {
+                .x = (float)i * 4.0f + (side ? 0.75f : 0.0f), .y = 0.0f
+            });
+        }
+    }
+    ecs_progress();
+    benchmark_event_callbacks = 0;
+    const uint64_t start = now_ns();
+    for (uint32_t frame = 0; frame < 3; frame++) {
+        ecs_progress();
+    }
+    const uint64_t elapsed = now_ns() - start;
+    SipCollisionRuntime *runtime = ecs_get_resource(SipCollisionRuntime);
+    const SipSettings *settings = ecs_get_resource_read(SipSettings);
+    sip_collision_collect(runtime);
+    sip_broadphase(runtime);
+    const uint64_t tracking_start = now_ns();
+    sip_collision_narrowphase(runtime);
+    const uint64_t tracking_elapsed = now_ns() - tracking_start;
+    sip_collision_solve(runtime, settings);
+    const uint64_t dispatch_start = now_ns();
+    sip_collision_event_diff(runtime);
+    const uint64_t dispatch_elapsed = now_ns() - dispatch_start;
+    printf("archetype mode=%u N=%u simulation=%.2f ns/entity tracking=%.2f ns/contact "
+           "dispatch=%.2f ns/pair event_pairs=%u dispatch_count=%u callbacks=%u\n",
+           mode, count, (double)elapsed / (double)(count * 3u),
+           runtime->current_event_pair_count
+               ? (double)tracking_elapsed / runtime->current_event_pair_count : 0.0,
+           runtime->current_event_pair_count
+               ? (double)dispatch_elapsed / runtime->current_event_pair_count : 0.0,
+           runtime->current_event_pair_count, runtime->event_dispatch_count,
+           benchmark_event_callbacks);
+    ecs_fini();
+}
+
+static void benchmark_sensor_scene(uint32_t count, uint32_t mode) {
+    ecs_init();
+    ECS_MODULE_IMPORT(siphysics, { .use_custom_settings = true, .settings = {
+        .gravity_x = 0.0f, .gravity_y = 0.0f, .fixed_dt = 1.0f / 60.0f,
+        .max_frame_dt = 0.25f, .max_substeps = 8, .solver_iterations = 6,
+        .penetration_slop = 0.005f, .penetration_correction = 0.8f,
+    }});
+    ecs_set_resource(SipCollisionCapacity, {
+        .proxy_capacity = count, .pair_capacity = count,
+        .contact_capacity = count, .event_pair_capacity = 0,
+    });
+    for (uint32_t i = 0; i < count / 2; i++) {
+        const bool sensor = mode == 1 || (mode == 2 && (i & 1u));
+        for (uint32_t side = 0; side < 2; side++) {
+            ecs_entity_t entity = ecs_new();
+            if (sensor) {
+                ecs_add(entity, Static);
+                ecs_add(entity, Sensor);
+            } else {
+                ecs_add(entity, Kinematic);
+            }
+            ecs_add(entity, CircleCollider);
+            ecs_set(entity, Position, {
+                .x = (float)i * 4.0f + (side ? 0.75f : 0.0f), .y = 0.0f
+            });
+        }
+    }
+    ecs_progress();
+    const uint64_t start = now_ns();
+    for (uint32_t frame = 0; frame < 3; frame++) {
+        ecs_progress();
+    }
+    const uint64_t elapsed = now_ns() - start;
+    const SipCollisionStats *stats = ecs_get_resource_read(SipCollisionStats);
+    printf("sensor mode=%u N=%u total=%.2f ns/entity contacts=%u candidates=%u\n",
+           mode, count, (double)elapsed / (double)(count * 3u), stats->contact_count,
+           stats->candidate_count);
+    ecs_fini();
 }
 
 /* Benchmark-only AoS comparison: includes input and output copies, never used by production. */
@@ -297,7 +484,7 @@ static void benchmark_pipeline_scale(uint32_t count) {
     printf(
         "Pipeline %u: proxy %.2f ns/body, sort %.2f ns/body, SAP %.2f ns/body, "
         "narrow %.2f ns/candidate, solver %.2f ns/contact, total %.2f ns/body, "
-        "proxies=%u candidates=%u contacts=%u growth=%" PRIu64 "->%" PRIu64 " (delta=%" PRIu64 ")\n",
+        "proxies=%u candidates=%u contacts=%u event_pairs=%u growth=%" PRIu64 "->%" PRIu64 " (delta=%" PRIu64 ")\n",
         count,
         (double)proxy_elapsed / (double)count,
         (double)sort_elapsed / (double)count,
@@ -308,6 +495,7 @@ static void benchmark_pipeline_scale(uint32_t count) {
         runtime->proxy_count,
         candidates,
         runtime->contact_count,
+        runtime->current_event_pair_count,
         warmup_growth,
         runtime->growth_count,
         runtime->growth_count - warmup_growth
@@ -339,6 +527,15 @@ int main(void) {
     benchmark_pipeline_scale(10000);
     benchmark_pipeline_scale(50000);
     benchmark_pipeline_scale(100000);
+    benchmark_event_pair_sort();
+    printf("[event archetype opt-in]\n");
+    benchmark_event_archetypes(100000, 0);
+    benchmark_event_archetypes(100000, 1);
+    benchmark_event_archetypes(100000, 2);
+    printf("[sensor solver skip]\n");
+    benchmark_sensor_scene(20000, 0);
+    benchmark_sensor_scene(20000, 1);
+    benchmark_sensor_scene(20000, 2);
 
     free(box_pairs);
     free(circle_box_pairs);
