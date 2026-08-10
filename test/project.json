@@ -17,6 +17,15 @@
           "module_and_defaults",
           "body_components"
         ]
+      },
+      {
+        "id": "collision_narrowphase",
+        "testcases": [
+          "circle_circle",
+          "circle_box",
+          "box_box",
+          "ecs_requirements"
+        ]
       }
     ]
   },

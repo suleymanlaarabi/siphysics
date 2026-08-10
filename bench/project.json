@@ -1,0 +1,13 @@
+{
+  "id": "siphysics.bench",
+  "type": "application",
+  "value": {
+    "public": false,
+    "author": "Jane Doe",
+    "description": "SiPhysics narrowphase micro-benchmarks",
+    "clangd": true
+  },
+  "lang.c": {
+    "c-standard": "c17"
+  }
+}

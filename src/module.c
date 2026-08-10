@@ -15,14 +15,33 @@ void siphysics_import(const siphysics_props_t *props) {
         InverseMass,
         Force,
         Damping,
+        CircleCollider,
+        BoxCollider,
+        CollisionMaterial,
+        CollisionFilter,
         Static,
         Kinematic,
-        Dynamic
+        Dynamic,
+        Sensor
     );
 
     ecs_with(Static, Position, Rotation);
     ecs_with(Kinematic, Position, Rotation, Velocity, AngularVelocity);
     ecs_with(Dynamic, Position, Rotation, Velocity, AngularVelocity, InverseMass);
+
+    ecs_with(
+        CircleCollider,
+        Position,
+        CollisionMaterial,
+        CollisionFilter
+    );
+    ecs_with(
+        BoxCollider,
+        Position,
+        Rotation,
+        CollisionMaterial,
+        CollisionFilter
+    );
 
     ECS_RESOURCE_REGISTER(SipSettings);
     SipSettings settings = props->use_custom_settings ? props->settings
