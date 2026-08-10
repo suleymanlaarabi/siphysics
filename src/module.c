@@ -10,6 +10,7 @@ void siphysics_import(const siphysics_props_t *props) {
     ECS_COMPONENT_REGISTER(
         Position,
         Velocity,
+        AngularVelocity,
         Rotation,
         InverseMass,
         Force,
@@ -20,8 +21,8 @@ void siphysics_import(const siphysics_props_t *props) {
     );
 
     ecs_with(Static, Position, Rotation);
-    ecs_with(Kinematic, Position, Rotation, Velocity);
-    ecs_with(Dynamic, Position, Rotation, Velocity, InverseMass);
+    ecs_with(Kinematic, Position, Rotation, Velocity, AngularVelocity);
+    ecs_with(Dynamic, Position, Rotation, Velocity, AngularVelocity, InverseMass);
 
     ECS_RESOURCE_REGISTER(SipSettings);
     SipSettings settings = props->use_custom_settings ? props->settings
