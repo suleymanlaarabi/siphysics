@@ -52,6 +52,7 @@ void siphysics_register_systems(void) {
             },
             .phase = siphysics_phase,
             .callback = apply_gravity,
+            .main_thread_only = true,
         }
     );
 
@@ -62,6 +63,7 @@ void siphysics_register_systems(void) {
             .phase = siphysics_phase,
             .after = { gravity_system },
             .callback = integrate_velocity,
+            .main_thread_only = true,
         }
     );
 
@@ -71,6 +73,7 @@ void siphysics_register_systems(void) {
             .query.terms = { ecs_inout(Rotation), ecs_in(AngularVelocity) },
             .phase = siphysics_phase,
             .callback = integrate_angular_velocity,
+            .main_thread_only = true,
         }
     );
 

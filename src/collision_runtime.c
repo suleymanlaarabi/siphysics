@@ -44,8 +44,13 @@ void sip_collision_runtime_reset(SipCollisionRuntime *runtime) {
     runtime->event_dispatch_count = 0;
 }
 
-static void sip_reserve(void **memory, uint32_t *capacity, uint32_t needed,
-                        size_t element_size, SipCollisionRuntime *runtime) {
+static void sip_reserve(
+    void **memory,
+    uint32_t *capacity,
+    uint32_t needed,
+    size_t element_size,
+    SipCollisionRuntime *runtime
+) {
     if (needed <= *capacity) {
         return;
     }
@@ -54,48 +59,79 @@ static void sip_reserve(void **memory, uint32_t *capacity, uint32_t needed,
     runtime->growth_count++;
 }
 
-void sip_collision_runtime_reserve(SipCollisionRuntime *runtime,
-                                   const SipCollisionCapacity *capacity) {
+void sip_collision_runtime_reserve(
+    SipCollisionRuntime *runtime,
+    const SipCollisionCapacity *capacity
+) {
     if (capacity->proxy_capacity > runtime->proxy_capacity) {
-        runtime->proxies = realloc(runtime->proxies,
-                                   sizeof(*runtime->proxies) * capacity->proxy_capacity);
+        runtime->proxies =
+            realloc(runtime->proxies, sizeof(*runtime->proxies) * capacity->proxy_capacity);
         runtime->proxy_scratch = realloc(
-            runtime->proxy_scratch, sizeof(*runtime->proxy_scratch) * capacity->proxy_capacity);
-        runtime->box_geoms = realloc(
-            runtime->box_geoms, sizeof(*runtime->box_geoms) * capacity->proxy_capacity);
+            runtime->proxy_scratch,
+            sizeof(*runtime->proxy_scratch) * capacity->proxy_capacity
+        );
+        runtime->box_geoms =
+            realloc(runtime->box_geoms, sizeof(*runtime->box_geoms) * capacity->proxy_capacity);
         runtime->proxy_capacity = capacity->proxy_capacity;
         runtime->growth_count++;
     }
 
-    sip_reserve((void **)&runtime->circle_circle_pairs,
-                &runtime->circle_circle_capacity, capacity->pair_capacity,
-                sizeof(*runtime->circle_circle_pairs), runtime);
-    sip_reserve((void **)&runtime->circle_box_pairs,
-                &runtime->circle_box_capacity, capacity->pair_capacity,
-                sizeof(*runtime->circle_box_pairs), runtime);
-    sip_reserve((void **)&runtime->box_box_pairs,
-                &runtime->box_box_capacity, capacity->pair_capacity,
-                sizeof(*runtime->box_box_pairs), runtime);
-    sip_reserve((void **)&runtime->contacts, &runtime->contact_capacity,
-                capacity->contact_capacity, sizeof(*runtime->contacts), runtime);
+    sip_reserve(
+        (void **)&runtime->circle_circle_pairs,
+        &runtime->circle_circle_capacity,
+        capacity->pair_capacity,
+        sizeof(*runtime->circle_circle_pairs),
+        runtime
+    );
+    sip_reserve(
+        (void **)&runtime->circle_box_pairs,
+        &runtime->circle_box_capacity,
+        capacity->pair_capacity,
+        sizeof(*runtime->circle_box_pairs),
+        runtime
+    );
+    sip_reserve(
+        (void **)&runtime->box_box_pairs,
+        &runtime->box_box_capacity,
+        capacity->pair_capacity,
+        sizeof(*runtime->box_box_pairs),
+        runtime
+    );
+    sip_reserve(
+        (void **)&runtime->contacts,
+        &runtime->contact_capacity,
+        capacity->contact_capacity,
+        sizeof(*runtime->contacts),
+        runtime
+    );
     if (capacity->event_pair_capacity > runtime->event_pair_capacity) {
         runtime->previous_pairs = realloc(
-            runtime->previous_pairs, sizeof(*runtime->previous_pairs) * capacity->event_pair_capacity);
+            runtime->previous_pairs,
+            sizeof(*runtime->previous_pairs) * capacity->event_pair_capacity
+        );
         runtime->current_pairs = realloc(
-            runtime->current_pairs, sizeof(*runtime->current_pairs) * capacity->event_pair_capacity);
+            runtime->current_pairs,
+            sizeof(*runtime->current_pairs) * capacity->event_pair_capacity
+        );
         runtime->event_pair_scratch = realloc(
             runtime->event_pair_scratch,
-            sizeof(*runtime->event_pair_scratch) * capacity->event_pair_capacity);
+            sizeof(*runtime->event_pair_scratch) * capacity->event_pair_capacity
+        );
         runtime->event_pair_capacity = capacity->event_pair_capacity;
         runtime->growth_count++;
     }
 }
 
 #ifndef SIPHYSICS_BENCHMARK
-static ecs_query_id_t sip_circle_query(ecs_entity_t body, ecs_entity_t excluded_body_a,
-                                       ecs_entity_t excluded_body_b, bool dynamic,
-                                       bool sensor, bool events) {
-    ecs_query_term_t terms[ECS_QUERY_TERM_CAPACITY] = {0};
+static ecs_query_id_t sip_circle_query(
+    ecs_entity_t body,
+    ecs_entity_t excluded_body_a,
+    ecs_entity_t excluded_body_b,
+    bool dynamic,
+    bool sensor,
+    bool events
+) {
+    ecs_query_term_t terms[ECS_QUERY_TERM_CAPACITY] = { 0 };
     uint32_t field = 0;
     terms[field++] = dynamic ? ecs_inout(Position) : ecs_in(Position);
     if (body == ecs_id(Dynamic)) {
@@ -113,15 +149,29 @@ static ecs_query_id_t sip_circle_query(ecs_entity_t body, ecs_entity_t excluded_
     terms[field++] = (ecs_query_term_t){ excluded_body_a, EcsNot };
     terms[field++] = (ecs_query_term_t){ excluded_body_b, EcsNot };
     terms[field++] = (ecs_query_term_t){ ecs_id(BoxCollider), EcsNot };
-    return ecs_query_init(&(ecs_query_desc_t){ .terms = { 
-        terms[0], terms[1], terms[2], terms[3], terms[4], terms[5], terms[6], terms[7], terms[8], terms[9], terms[10], terms[11]
-    } });
+    return ecs_query_init(&(ecs_query_desc_t){ .terms = { terms[0],
+                                                          terms[1],
+                                                          terms[2],
+                                                          terms[3],
+                                                          terms[4],
+                                                          terms[5],
+                                                          terms[6],
+                                                          terms[7],
+                                                          terms[8],
+                                                          terms[9],
+                                                          terms[10],
+                                                          terms[11] } });
 }
 
-static ecs_query_id_t sip_box_query(ecs_entity_t body, ecs_entity_t excluded_body_a,
-                                    ecs_entity_t excluded_body_b, bool dynamic,
-                                    bool sensor, bool events) {
-    ecs_query_term_t terms[ECS_QUERY_TERM_CAPACITY] = {0};
+static ecs_query_id_t sip_box_query(
+    ecs_entity_t body,
+    ecs_entity_t excluded_body_a,
+    ecs_entity_t excluded_body_b,
+    bool dynamic,
+    bool sensor,
+    bool events
+) {
+    ecs_query_term_t terms[ECS_QUERY_TERM_CAPACITY] = { 0 };
     uint32_t field = 0;
     terms[field++] = dynamic ? ecs_inout(Position) : ecs_in(Position);
     if (body == ecs_id(Dynamic)) {
@@ -140,9 +190,19 @@ static ecs_query_id_t sip_box_query(ecs_entity_t body, ecs_entity_t excluded_bod
     terms[field++] = (ecs_query_term_t){ excluded_body_a, EcsNot };
     terms[field++] = (ecs_query_term_t){ excluded_body_b, EcsNot };
     terms[field++] = (ecs_query_term_t){ ecs_id(CircleCollider), EcsNot };
-    return ecs_query_init(&(ecs_query_desc_t){ .terms = {
-        terms[0], terms[1], terms[2], terms[3], terms[4], terms[5], terms[6], terms[7], terms[8], terms[9], terms[10], terms[11], terms[12]
-    } });
+    return ecs_query_init(&(ecs_query_desc_t){ .terms = { terms[0],
+                                                          terms[1],
+                                                          terms[2],
+                                                          terms[3],
+                                                          terms[4],
+                                                          terms[5],
+                                                          terms[6],
+                                                          terms[7],
+                                                          terms[8],
+                                                          terms[9],
+                                                          terms[10],
+                                                          terms[11],
+                                                          terms[12] } });
 }
 
 void siphysics_collision_init(void) {
@@ -151,29 +211,60 @@ void siphysics_collision_init(void) {
         const bool sensor = (flags & 2u) != 0;
         const bool events = (flags & 1u) != 0;
         runtime->queries[SIP_QUERY_DYNAMIC_CIRCLE * 4 + flags] = sip_circle_query(
-            ecs_id(Dynamic), ecs_id(Kinematic), ecs_id(Static), true, sensor, events);
+            ecs_id(Dynamic),
+            ecs_id(Kinematic),
+            ecs_id(Static),
+            true,
+            sensor,
+            events
+        );
         runtime->queries[SIP_QUERY_KINEMATIC_CIRCLE * 4 + flags] = sip_circle_query(
-            ecs_id(Kinematic), ecs_id(Dynamic), ecs_id(Static), false, sensor, events);
+            ecs_id(Kinematic),
+            ecs_id(Dynamic),
+            ecs_id(Static),
+            false,
+            sensor,
+            events
+        );
         runtime->queries[SIP_QUERY_STATIC_CIRCLE * 4 + flags] = sip_circle_query(
-            ecs_id(Static), ecs_id(Dynamic), ecs_id(Kinematic), false, sensor, events);
-        runtime->queries[SIP_QUERY_DYNAMIC_BOX * 4 + flags] = sip_box_query(
-            ecs_id(Dynamic), ecs_id(Kinematic), ecs_id(Static), true, sensor, events);
+            ecs_id(Static),
+            ecs_id(Dynamic),
+            ecs_id(Kinematic),
+            false,
+            sensor,
+            events
+        );
+        runtime->queries[SIP_QUERY_DYNAMIC_BOX * 4 + flags] =
+            sip_box_query(ecs_id(Dynamic), ecs_id(Kinematic), ecs_id(Static), true, sensor, events);
         runtime->queries[SIP_QUERY_KINEMATIC_BOX * 4 + flags] = sip_box_query(
-            ecs_id(Kinematic), ecs_id(Dynamic), ecs_id(Static), false, sensor, events);
+            ecs_id(Kinematic),
+            ecs_id(Dynamic),
+            ecs_id(Static),
+            false,
+            sensor,
+            events
+        );
         runtime->queries[SIP_QUERY_STATIC_BOX * 4 + flags] = sip_box_query(
-            ecs_id(Static), ecs_id(Dynamic), ecs_id(Kinematic), false, sensor, events);
+            ecs_id(Static),
+            ecs_id(Dynamic),
+            ecs_id(Kinematic),
+            false,
+            sensor,
+            events
+        );
     }
 }
 
-void siphysics_collision_register_system(ecs_system_id_t integrate_velocity,
-                                         ecs_system_id_t integrate_angular_velocity) {
+void siphysics_collision_register_system(
+    ecs_system_id_t integrate_velocity,
+    ecs_system_id_t integrate_angular_velocity
+) {
     ecs_system(
-        {
-            .name = "CollisionStep",
-            .phase = siphysics_phase,
-            .after = { integrate_velocity, integrate_angular_velocity },
-            .callback = siphysics_collision_step,
-        }
+        { .name = "CollisionStep",
+          .phase = siphysics_phase,
+          .after = { integrate_velocity, integrate_angular_velocity },
+          .callback = siphysics_collision_step,
+          .main_thread_only = true }
     );
 }
 #endif
