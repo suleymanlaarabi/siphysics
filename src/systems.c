@@ -9,7 +9,7 @@ void integrate_velocity(ecs_iter_t *it) {
     const Velocity *restrict velocities = ecs_field(it, 1);
 
     const uint32_t count = it->count;
-    const uint32_t delta_time = it->delta_time;
+    const float delta_time = it->delta_time;
 
     for (uint32_t i = 0; i < count; i++) {
         positions[i].x += velocities[i].x * delta_time;
@@ -22,7 +22,7 @@ void integrate_angular_velocity(ecs_iter_t *it) {
     const AngularVelocity *restrict angular_velocities = ecs_field(it, 1);
 
     const uint32_t count = it->count;
-    const uint32_t delta_time = it->delta_time;
+    const float delta_time = it->delta_time;
 
     for (uint32_t i = 0; i < count; i++) {
         rotations[i].angle += angular_velocities[i].value * delta_time;
