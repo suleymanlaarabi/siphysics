@@ -18,6 +18,7 @@ void siphysics_import(const siphysics_props_t *props) {
         AngularVelocity,
         Rotation,
         InverseMass,
+        InverseInertia,
         Force,
         Damping,
         CircleCollider,
@@ -33,7 +34,7 @@ void siphysics_import(const siphysics_props_t *props) {
 
     ecs_with(Static, Position, Rotation);
     ecs_with(Kinematic, Position, Rotation, Velocity, AngularVelocity);
-    ecs_with(Dynamic, Position, Rotation, Velocity, AngularVelocity, InverseMass);
+    ecs_with(Dynamic, Position, Rotation, Velocity, AngularVelocity, InverseMass, InverseInertia);
 
     ecs_with(
         CircleCollider,

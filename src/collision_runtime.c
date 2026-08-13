@@ -129,6 +129,17 @@ void sip_collision_runtime_reserve(
 }
 
 #ifndef SIPHYSICS_BENCHMARK
+static ecs_query_id_t sip_query_init_terms(
+    const ecs_query_term_t *terms,
+    uint32_t count
+) {
+    ecs_query_desc_t desc = {0};
+    for (uint32_t i = 0; i < count; i++) {
+        desc.terms[i] = terms[i];
+    }
+    return ecs_query_init(&desc);
+}
+
 static ecs_query_id_t sip_circle_query(
     ecs_entity_t body,
     ecs_entity_t excluded_body_a,
@@ -142,9 +153,12 @@ static ecs_query_id_t sip_circle_query(
     terms[field++] = dynamic ? ecs_inout(Position) : ecs_in(Position);
     if (body == ecs_id(Dynamic)) {
         terms[field++] = ecs_inout(Velocity);
+        terms[field++] = ecs_inout(AngularVelocity);
         terms[field++] = ecs_in(InverseMass);
+        terms[field++] = ecs_inout(InverseInertia);
     } else if (body == ecs_id(Kinematic)) {
         terms[field++] = ecs_in(Velocity);
+        terms[field++] = ecs_in(AngularVelocity);
     }
     terms[field++] = ecs_in(CircleCollider);
     terms[field++] = ecs_in(CollisionMaterial);
@@ -155,18 +169,7 @@ static ecs_query_id_t sip_circle_query(
     terms[field++] = (ecs_query_term_t){ excluded_body_a, EcsNot };
     terms[field++] = (ecs_query_term_t){ excluded_body_b, EcsNot };
     terms[field++] = (ecs_query_term_t){ ecs_id(BoxCollider), EcsNot };
-    return ecs_query_init(&(ecs_query_desc_t){ .terms = { terms[0],
-                                                          terms[1],
-                                                          terms[2],
-                                                          terms[3],
-                                                          terms[4],
-                                                          terms[5],
-                                                          terms[6],
-                                                          terms[7],
-                                                          terms[8],
-                                                          terms[9],
-                                                          terms[10],
-                                                          terms[11] } });
+    return sip_query_init_terms(terms, field);
 }
 
 static ecs_query_id_t sip_box_query(
@@ -182,9 +185,12 @@ static ecs_query_id_t sip_box_query(
     terms[field++] = dynamic ? ecs_inout(Position) : ecs_in(Position);
     if (body == ecs_id(Dynamic)) {
         terms[field++] = ecs_inout(Velocity);
+        terms[field++] = ecs_inout(AngularVelocity);
         terms[field++] = ecs_in(InverseMass);
+        terms[field++] = ecs_inout(InverseInertia);
     } else if (body == ecs_id(Kinematic)) {
         terms[field++] = ecs_in(Velocity);
+        terms[field++] = ecs_in(AngularVelocity);
     }
     terms[field++] = ecs_in(Rotation);
     terms[field++] = ecs_in(BoxCollider);
@@ -196,19 +202,7 @@ static ecs_query_id_t sip_box_query(
     terms[field++] = (ecs_query_term_t){ excluded_body_a, EcsNot };
     terms[field++] = (ecs_query_term_t){ excluded_body_b, EcsNot };
     terms[field++] = (ecs_query_term_t){ ecs_id(CircleCollider), EcsNot };
-    return ecs_query_init(&(ecs_query_desc_t){ .terms = { terms[0],
-                                                          terms[1],
-                                                          terms[2],
-                                                          terms[3],
-                                                          terms[4],
-                                                          terms[5],
-                                                          terms[6],
-                                                          terms[7],
-                                                          terms[8],
-                                                          terms[9],
-                                                          terms[10],
-                                                          terms[11],
-                                                          terms[12] } });
+    return sip_query_init_terms(terms, field);
 }
 
 void siphysics_collision_init(void) {

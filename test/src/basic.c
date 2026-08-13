@@ -89,6 +89,7 @@ void basic_body_components(void) {
     test_true(ecs_has(static_body, Position));
     test_true(ecs_has(static_body, Rotation));
     test_false(ecs_has(static_body, Velocity));
+    test_false(ecs_has(static_body, InverseInertia));
 
     ecs_entity_t kinematic_body = ecs_new();
     ecs_add(kinematic_body, Kinematic);
@@ -96,6 +97,7 @@ void basic_body_components(void) {
     test_true(ecs_has(kinematic_body, Rotation));
     test_true(ecs_has(kinematic_body, Velocity));
     test_false(ecs_has(kinematic_body, InverseMass));
+    test_false(ecs_has(kinematic_body, InverseInertia));
 
     ecs_entity_t dynamic_body = ecs_new();
     ecs_add(dynamic_body, Dynamic);
@@ -103,6 +105,7 @@ void basic_body_components(void) {
     test_true(ecs_has(dynamic_body, Rotation));
     test_true(ecs_has(dynamic_body, Velocity));
     test_true(ecs_has(dynamic_body, InverseMass));
+    test_true(ecs_has(dynamic_body, InverseInertia));
     test_assert(ecs_get(dynamic_body, InverseMass)->value == 1.0f);
     test_false(ecs_has(dynamic_body, Force));
     test_false(ecs_has(dynamic_body, Damping));
@@ -117,6 +120,7 @@ void basic_body_components(void) {
     ecs_remove(dynamic_body, Dynamic);
     ecs_add(dynamic_body, Kinematic);
     ecs_remove(dynamic_body, InverseMass);
+    ecs_remove(dynamic_body, InverseInertia);
     ecs_remove(dynamic_body, Damping);
     ecs_defer_end();
 
@@ -126,6 +130,7 @@ void basic_body_components(void) {
     test_true(ecs_has(dynamic_body, Rotation));
     test_true(ecs_has(dynamic_body, Velocity));
     test_false(ecs_has(dynamic_body, InverseMass));
+    test_false(ecs_has(dynamic_body, InverseInertia));
     test_false(ecs_has(dynamic_body, Force));
     test_false(ecs_has(dynamic_body, Damping));
     test_assert(ecs_get(dynamic_body, Position)->x == 12.0f);
@@ -140,12 +145,14 @@ void basic_body_components(void) {
     test_true(ecs_has(dynamic_body, Dynamic));
     test_false(ecs_has(dynamic_body, Kinematic));
     test_assert(ecs_get(dynamic_body, InverseMass)->value == 0.5f);
+    test_true(ecs_has(dynamic_body, InverseInertia));
 
     ecs_remove(dynamic_body, Dynamic);
     ecs_remove(dynamic_body, Position);
     ecs_remove(dynamic_body, Rotation);
     ecs_remove(dynamic_body, Velocity);
     ecs_remove(dynamic_body, InverseMass);
+    ecs_remove(dynamic_body, InverseInertia);
     ecs_remove(dynamic_body, Force);
     ecs_remove(dynamic_body, Damping);
     test_true(ecs_is_alive(dynamic_body));

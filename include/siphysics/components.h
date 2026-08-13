@@ -40,6 +40,12 @@ ECS_COMPONENT_DECLARE_CPP(
 );
 
 ECS_COMPONENT_DECLARE_CPP(
+    InverseInertia,
+    ECS_CPP_FIELDS(float value;),
+    ECS_CPP_METHODS()
+);
+
+ECS_COMPONENT_DECLARE_CPP(
     Force,
     ECS_CPP_FIELDS(float x; float y;),
     ECS_CPP_METHODS()

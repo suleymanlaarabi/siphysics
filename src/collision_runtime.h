@@ -29,7 +29,9 @@ typedef struct SipBoxGeom {
 typedef struct SipBatchRef {
     Position *positions;
     Velocity *velocities;
+    AngularVelocity *angular_velocities;
     InverseMass *inverse_masses;
+    InverseInertia *inverse_inertias;
     const Rotation *rotations;
     const CircleCollider *circles;
     const BoxCollider *boxes;
@@ -100,6 +102,8 @@ typedef struct SipSolverContact {
     float restitution;
     float friction;
     float restitution_bias;
+    float normal_mass;
+    float tangent_mass;
 
     float normal_impulse;
     float tangent_impulse;

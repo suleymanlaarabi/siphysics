@@ -647,3 +647,124 @@ void collision_pipeline_warm_start_friction(void) {
     test_assert(ecs_get(circle, Velocity)->x < velocity_x_after_first);
     ecs_fini();
 }
+
+void collision_pipeline_circle_inverse_inertia(void) {
+    collision_import(0.0f, 0.0f);
+    ecs_entity_t circle = collision_dynamic_circle(0.0f, 10.0f);
+    ecs_set(circle, InverseMass, { .value = 0.5f });
+    ecs_set(circle, CircleCollider, { .radius = 2.0f });
+
+    collision_step();
+    test_assert(ecs_get(circle, InverseInertia)->value > 0.24999f);
+    test_assert(ecs_get(circle, InverseInertia)->value < 0.25001f);
+
+    ecs_set(circle, InverseMass, { .value = 1.0f });
+    ecs_set(circle, CircleCollider, { .radius = 1.0f });
+    collision_step();
+    test_assert(ecs_get(circle, InverseInertia)->value > 1.99999f);
+    test_assert(ecs_get(circle, InverseInertia)->value < 2.00001f);
+    ecs_fini();
+}
+
+void collision_pipeline_box_inverse_inertia(void) {
+    collision_import(0.0f, 0.0f);
+    ecs_entity_t box = collision_dynamic_box(0.0f, 10.0f, 0.0f);
+    ecs_set(box, InverseMass, { .value = 0.5f });
+    ecs_set(box, BoxCollider, { .half_width = 2.0f, .half_height = 1.0f });
+
+    collision_step();
+    test_assert(ecs_get(box, InverseInertia)->value > 0.29999f);
+    test_assert(ecs_get(box, InverseInertia)->value < 0.30001f);
+
+    ecs_set(box, InverseMass, { .value = 1.0f });
+    ecs_set(box, BoxCollider, { .half_width = 1.0f, .half_height = 1.0f });
+    collision_step();
+    test_assert(ecs_get(box, InverseInertia)->value > 1.49999f);
+    test_assert(ecs_get(box, InverseInertia)->value < 1.50001f);
+    ecs_fini();
+}
+
+void collision_pipeline_circle_rolling_friction(void) {
+    collision_regression_import(-9.81f, 8, 0.001f, 1.0f);
+    collision_regression_ground(0.0f, 1.0f, 0.0f);
+    ecs_entity_t circle = collision_dynamic_circle(0.0f, 0.99f);
+    ecs_set(circle, CircleCollider, { .radius = 0.5f });
+    ecs_set(circle, Velocity, { .x = 4.0f, .y = 0.0f });
+    ecs_set(circle, AngularVelocity, { .value = 0.0f });
+    collision_regression_material(circle, 1.0f, 0.0f);
+
+    for (uint32_t i = 0; i < 8; i++) collision_step();
+
+    test_assert(ecs_get(circle, Velocity)->x < 4.0f);
+    test_assert(ecs_get(circle, AngularVelocity)->value < 0.0f);
+    ecs_fini();
+}
+
+void collision_pipeline_central_contact_no_rotation(void) {
+    collision_import(0.0f, 0.0f);
+    ecs_entity_t a = collision_dynamic_circle(-0.49f, 0.0f);
+    ecs_entity_t b = collision_dynamic_circle(0.49f, 0.0f);
+    ecs_set(a, Velocity, { .x = 1.0f, .y = 0.0f });
+    ecs_set(b, Velocity, { .x = -1.0f, .y = 0.0f });
+    collision_regression_material(a, 0.0f, 0.0f);
+    collision_regression_material(b, 0.0f, 0.0f);
+
+    collision_step();
+
+    test_assert(ecs_get(a, AngularVelocity)->value > -0.00001f);
+    test_assert(ecs_get(a, AngularVelocity)->value < 0.00001f);
+    test_assert(ecs_get(b, AngularVelocity)->value > -0.00001f);
+    test_assert(ecs_get(b, AngularVelocity)->value < 0.00001f);
+    ecs_fini();
+}
+
+void collision_pipeline_box_offcenter_rotation(void) {
+    collision_import(0.0f, 0.0f);
+    ecs_entity_t box = collision_dynamic_box(0.0f, 0.0f, 0.0f);
+    ecs_set(box, BoxCollider, { .half_width = 0.5f, .half_height = 0.5f });
+    ecs_set(box, Velocity, { .x = 1.0f, .y = 1.0f });
+    collision_regression_material(box, 0.0f, 0.0f);
+    ecs_entity_t target = collision_static_circle(0.75f, 0.6f);
+    ecs_set(target, CircleCollider, { .radius = 0.4f });
+    collision_regression_material(target, 0.0f, 0.0f);
+
+    collision_step();
+
+    const float angular_velocity = ecs_get(box, AngularVelocity)->value;
+    test_assert(angular_velocity > 0.01f || angular_velocity < -0.01f);
+    ecs_fini();
+}
+
+void collision_pipeline_box_resting_face_angular(void) {
+    collision_regression_import(-9.81f, 8, 0.005f, 0.8f);
+    collision_regression_ground(0.0f, 0.0f, 0.0f);
+    ecs_entity_t box = collision_dynamic_box(0.0f, 1.0f, 0.0f);
+    ecs_set(box, BoxCollider, { .half_width = 1.0f, .half_height = 0.5f });
+    collision_regression_material(box, 0.0f, 0.0f);
+
+    for (uint32_t i = 0; i < 600; i++) collision_step();
+
+    test_assert(ecs_get(box, Rotation)->angle > -0.02f);
+    test_assert(ecs_get(box, Rotation)->angle < 0.02f);
+    test_assert(ecs_get(box, AngularVelocity)->value > -0.05f);
+    test_assert(ecs_get(box, AngularVelocity)->value < 0.05f);
+    ecs_fini();
+}
+
+void collision_pipeline_warm_start_angular(void) {
+    collision_cache_import(-9.81f, 2);
+    collision_cache_ground(0.0f, 1.0f);
+    ecs_entity_t circle = collision_cache_circle(0.99f, 1.0f);
+    ecs_set(circle, Velocity, { .x = 4.0f, .y = 0.0f });
+
+    collision_step();
+    const float angular_velocity_first = ecs_get(circle, AngularVelocity)->value;
+    collision_step();
+    const float angular_velocity_second = ecs_get(circle, AngularVelocity)->value;
+    const SipCollisionStats *stats = ecs_get_resource_read(SipCollisionStats);
+
+    test_assert(stats->contact_cache_hit_count == 1);
+    test_assert(angular_velocity_first < 0.0f);
+    test_assert(angular_velocity_second < 0.0f);
+    ecs_fini();
+}

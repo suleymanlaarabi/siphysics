@@ -5,7 +5,9 @@
 typedef struct SipQueryLayout {
     uint8_t position;
     uint8_t velocity;
+    uint8_t angular_velocity;
     uint8_t inverse_mass;
+    uint8_t inverse_inertia;
     uint8_t rotation;
     uint8_t shape;
     uint8_t material;
@@ -82,7 +84,9 @@ static void sip_collect_batch(SipCollisionRuntime *runtime, ecs_iter_t *it,
     batch = &runtime->batches[runtime->batch_count++];
     batch->positions = ecs_field(it, layout->position);
     batch->velocities = layout->velocity == UINT8_MAX ? NULL : ecs_field(it, layout->velocity);
+    batch->angular_velocities = layout->angular_velocity == UINT8_MAX ? NULL : ecs_field(it, layout->angular_velocity);
     batch->inverse_masses = layout->inverse_mass == UINT8_MAX ? NULL : ecs_field(it, layout->inverse_mass);
+    batch->inverse_inertias = layout->inverse_inertia == UINT8_MAX ? NULL : ecs_field(it, layout->inverse_inertia);
     batch->rotations = layout->rotation == UINT8_MAX ? NULL : ecs_field(it, layout->rotation);
     batch->circles = shape == SIP_SHAPE_CIRCLE ? ecs_field(it, layout->shape) : NULL;
     batch->boxes = shape == SIP_SHAPE_BOX ? ecs_field(it, layout->shape) : NULL;
@@ -96,6 +100,25 @@ static void sip_collect_batch(SipCollisionRuntime *runtime, ecs_iter_t *it,
     batch->event_enabled = events;
 
     for (uint32_t row = 0; row < batch->count; row++) {
+        if (body_type == SIP_BODY_DYNAMIC) {
+            const float inverse_mass = batch->inverse_masses[row].value;
+            if (shape == SIP_SHAPE_CIRCLE) {
+                const float radius = batch->circles[row].radius;
+                batch->inverse_inertias[row].value =
+                    inverse_mass > 0.0f && radius > 0.0f
+                        ? 2.0f * inverse_mass / (radius * radius)
+                        : 0.0f;
+            } else {
+                const float hx = batch->boxes[row].half_width;
+                const float hy = batch->boxes[row].half_height;
+                const float denominator = hx * hx + hy * hy;
+                batch->inverse_inertias[row].value =
+                    inverse_mass > 0.0f && denominator > 0.000001f
+                        ? 3.0f * inverse_mass / denominator
+                        : 0.0f;
+            }
+        }
+
         sip_reserve_proxy(runtime, runtime->proxy_count + 1);
         const uint32_t proxy_index = runtime->proxy_count++;
         SipProxy *proxy = &runtime->proxies[proxy_index];
@@ -151,12 +174,24 @@ static void sip_collect_query(SipCollisionRuntime *runtime, ecs_query_id_t query
     }
 }
 
-static const SipQueryLayout sip_dynamic_circle_layout = { 0, 1, 2, UINT8_MAX, 3, 4, 5 };
-static const SipQueryLayout sip_kinematic_circle_layout = { 0, 1, UINT8_MAX, UINT8_MAX, 2, 3, 4 };
-static const SipQueryLayout sip_static_circle_layout = { 0, UINT8_MAX, UINT8_MAX, UINT8_MAX, 1, 2, 3 };
-static const SipQueryLayout sip_dynamic_box_layout = { 0, 1, 2, 3, 4, 5, 6 };
-static const SipQueryLayout sip_kinematic_box_layout = { 0, 1, UINT8_MAX, 2, 3, 4, 5 };
-static const SipQueryLayout sip_static_box_layout = { 0, UINT8_MAX, UINT8_MAX, 1, 2, 3, 4 };
+static const SipQueryLayout sip_dynamic_circle_layout = {
+    0, 1, 2, 3, 4, UINT8_MAX, 5, 6, 7
+};
+static const SipQueryLayout sip_kinematic_circle_layout = {
+    0, 1, 2, UINT8_MAX, UINT8_MAX, UINT8_MAX, 3, 4, 5
+};
+static const SipQueryLayout sip_static_circle_layout = {
+    0, UINT8_MAX, UINT8_MAX, UINT8_MAX, UINT8_MAX, UINT8_MAX, 1, 2, 3
+};
+static const SipQueryLayout sip_dynamic_box_layout = {
+    0, 1, 2, 3, 4, 5, 6, 7, 8
+};
+static const SipQueryLayout sip_kinematic_box_layout = {
+    0, 1, 2, UINT8_MAX, UINT8_MAX, 3, 4, 5, 6
+};
+static const SipQueryLayout sip_static_box_layout = {
+    0, UINT8_MAX, UINT8_MAX, UINT8_MAX, UINT8_MAX, 1, 2, 3, 4
+};
 
 static void sip_contact_material(const SipBatchRef *a, uint32_t row_a,
                                  const SipBatchRef *b, uint32_t row_b,

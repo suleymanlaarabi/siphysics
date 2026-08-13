@@ -56,6 +56,13 @@
           ,"warm_start_stack"
           ,"warm_start_low_iterations"
           ,"warm_start_friction"
+          ,"circle_inverse_inertia"
+          ,"box_inverse_inertia"
+          ,"circle_rolling_friction"
+          ,"central_contact_no_rotation"
+          ,"box_offcenter_rotation"
+          ,"box_resting_face_angular"
+          ,"warm_start_angular"
         ]
       },
       {
