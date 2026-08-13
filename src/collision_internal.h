@@ -8,13 +8,35 @@
 #include <xmmintrin.h>
 #endif
 
+#define SIP_MAX_MANIFOLD_POINTS 2
+
+typedef struct SipContactPoint {
+    float x;
+    float y;
+    float penetration;
+    uint32_t feature_id;
+} SipContactPoint;
+
 typedef struct SipContact {
     float normal_x;
     float normal_y;
-    float point_x;
-    float point_y;
-    float penetration;
+
+    SipContactPoint points[SIP_MAX_MANIFOLD_POINTS];
+    uint8_t point_count;
 } SipContact;
+
+static inline uint32_t sip_contact_feature_id(
+    uint32_t reference_face,
+    uint32_t incident_face,
+    uint32_t incident_vertex,
+    bool flip
+) {
+    return
+        (reference_face & 3u) |
+        ((incident_face & 3u) << 2) |
+        ((incident_vertex & 1u) << 4) |
+        ((flip ? 1u : 0u) << 5);
+}
 
 typedef struct SipObb {
     float center_x;
@@ -70,23 +92,6 @@ static inline void sip_sincosf(float angle, float *restrict sine, float *restric
         case 2: *sine = -base_sine; *cosine = -base_cosine; break;
         default: *sine = -base_cosine; *cosine = base_sine; break;
     }
-}
-
-static inline void sip_obb_support(
-    const SipObb *restrict box,
-    float direction_x,
-    float direction_y,
-    float *restrict out_x,
-    float *restrict out_y
-) {
-    const float x = sip_dot2(direction_x, direction_y, box->axis_x_x, box->axis_x_y) >= 0.0f
-                        ? box->half_width
-                        : -box->half_width;
-    const float y = sip_dot2(direction_x, direction_y, box->axis_y_x, box->axis_y_y) >= 0.0f
-                        ? box->half_height
-                        : -box->half_height;
-    *out_x = box->center_x + box->axis_x_x * x + box->axis_y_x * y;
-    *out_y = box->center_y + box->axis_x_y * x + box->axis_y_y * y;
 }
 
 bool sip_circle_circle(

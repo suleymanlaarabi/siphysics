@@ -47,16 +47,16 @@ void collision_narrowphase_circle_circle(void) {
     test_true(sip_circle_circle(0.0f, 0.0f, 1.0f, 2.0f, 0.0f, 1.0f, &contact));
     assert_close(contact.normal_x, 1.0f);
     assert_close(contact.normal_y, 0.0f);
-    assert_close(contact.penetration, 0.0f);
+    assert_close(contact.points[0].penetration, 0.0f);
 
     test_true(sip_circle_circle(0.0f, 0.0f, 1.0f, 1.5f, 0.0f, 1.0f, &contact));
     assert_close(contact.normal_x, 1.0f);
-    assert_close(contact.penetration, 0.5f);
+    assert_close(contact.points[0].penetration, 0.5f);
 
     test_true(sip_circle_circle(4.0f, -2.0f, 1.0f, 4.0f, -2.0f, 2.0f, &contact));
     assert_close(contact.normal_x, 1.0f);
     assert_close(contact.normal_y, 0.0f);
-    assert_close(contact.penetration, 3.0f);
+    assert_close(contact.points[0].penetration, 3.0f);
 
     test_true(sip_circle_circle(0.0f, 0.0f, 1.0f, 0.75f, 0.5f, 1.0f, &contact));
     const float normal_x = contact.normal_x;
@@ -73,7 +73,7 @@ void collision_narrowphase_circle_box(void) {
     test_true(sip_circle_box(1.5f, 0.0f, 0.75f, &box, &contact));
     assert_close(contact.normal_x, -1.0f);
     assert_close(contact.normal_y, 0.0f);
-    assert_close(contact.penetration, 0.25f);
+    assert_close(contact.points[0].penetration, 0.25f);
 
     test_true(sip_circle_box(1.5f, 1.5f, 0.75f, &box, &contact));
     assert_close(contact.normal_x, -0.70710677f);
@@ -82,7 +82,7 @@ void collision_narrowphase_circle_box(void) {
     test_true(sip_circle_box(0.0f, 0.0f, 0.25f, &box, &contact));
     assert_close(contact.normal_x, 1.0f);
     assert_close(contact.normal_y, 0.0f);
-    assert_close(contact.penetration, 1.25f);
+    assert_close(contact.points[0].penetration, 1.25f);
 
     const SipObb rotated_box = make_box(0.0f, 0.0f, 1.0f, 0.5f, 0.25f);
     test_true(sip_circle_box(
@@ -100,7 +100,7 @@ void collision_narrowphase_circle_box(void) {
     assert_close(contact.normal_y, 0.0f);
 
     test_true(sip_circle_box(2.0f, 0.0f, 1.0f, &box, &contact));
-    assert_close(contact.penetration, 0.0f);
+    assert_close(contact.points[0].penetration, 0.0f);
 }
 
 void collision_narrowphase_box_box(void) {
@@ -117,7 +117,7 @@ void collision_narrowphase_box_box(void) {
     test_true(sip_box_box(&unit, &overlap, &contact));
     assert_close(contact.normal_x, 1.0f);
     assert_close(contact.normal_y, 0.0f);
-    assert_close(contact.penetration, 0.5f);
+    assert_close(contact.points[0].penetration, 0.5f);
 
     const SipObb contained = make_box(0.0f, 0.0f, 0.25f, 0.5f, 0.0f);
     test_true(sip_box_box(&unit, &contained, &contact));
@@ -126,7 +126,7 @@ void collision_narrowphase_box_box(void) {
 
     const SipObb rotated_45 = make_box(0.0f, 0.0f, 1.0f, 1.0f, 0.785398163f);
     test_true(sip_box_box(&unit, &rotated_45, &contact));
-    test_assert(contact.penetration > 0.0f);
+    test_assert(contact.points[0].penetration > 0.0f);
 
     const SipObb twice_rotated = make_box(0.75f, 0.25f, 1.0f, 0.5f, 0.4f);
     test_true(sip_box_box(&unit, &twice_rotated, &contact));
@@ -134,7 +134,7 @@ void collision_narrowphase_box_box(void) {
 
     const SipObb tangent = make_box(2.0f, 0.0f, 1.0f, 1.0f, 0.0f);
     test_true(sip_box_box(&unit, &tangent, &contact));
-    assert_close(contact.penetration, 0.0f);
+    assert_close(contact.points[0].penetration, 0.0f);
 
     const SipObb same_center = make_box(0.0f, 0.0f, 1.0f, 1.0f, 0.0f);
     test_true(sip_box_box(&unit, &same_center, &contact));

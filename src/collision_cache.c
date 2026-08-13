@@ -83,7 +83,8 @@ void sip_contact_cache_begin_tick(
 static inline int sip_cached_contact_compare_key(
     const SipCachedContact *contact,
     ecs_entity_t a,
-    ecs_entity_t b
+    ecs_entity_t b,
+    uint32_t feature_id
 ) {
     if (contact->a < a) {
         return -1;
@@ -101,13 +102,22 @@ static inline int sip_cached_contact_compare_key(
         return 1;
     }
 
+    if (contact->feature_id < feature_id) {
+        return -1;
+    }
+
+    if (contact->feature_id > feature_id) {
+        return 1;
+    }
+
     return 0;
 }
 
 static const SipCachedContact *sip_contact_cache_find(
     const SipCollisionRuntime *runtime,
     ecs_entity_t a,
-    ecs_entity_t b
+    ecs_entity_t b,
+    uint32_t feature_id
 ) {
     uint32_t first = 0;
     uint32_t count =
@@ -124,7 +134,8 @@ static const SipCachedContact *sip_contact_cache_find(
             sip_cached_contact_compare_key(
                 cached,
                 a,
-                b
+                b,
+                feature_id
             );
 
         if (comparison < 0) {
@@ -167,7 +178,8 @@ void sip_contact_cache_restore(
         sip_contact_cache_find(
             runtime,
             key_a,
-            key_b
+            key_b,
+            contact->feature_id
         );
 
     if (!cached) {
@@ -214,12 +226,16 @@ static void sip_contact_cache_sort(
     SipCachedContact *destination =
         runtime->contact_cache_scratch;
 
-    for (uint32_t key = 0; key < 2; key++) {
+    for (uint32_t key = 0; key < 3; key++) {
         for (uint32_t shift = 0; shift < 64; shift += 8) {
+            if (key == 0 && shift >= 32) {
+                break;
+            }
             uint32_t counts[256] = {0};
             for (uint32_t i = 0; i < count; i++) {
-                const ecs_entity_t value =
-                    key == 0 ? source[i].b : source[i].a;
+                const uint64_t value = key == 0
+                    ? source[i].feature_id
+                    : (key == 1 ? source[i].b : source[i].a);
                 counts[(uint32_t)((value >> shift) & 0xffu)]++;
             }
 
@@ -231,8 +247,9 @@ static void sip_contact_cache_sort(
             }
 
             for (uint32_t i = 0; i < count; i++) {
-                const ecs_entity_t value =
-                    key == 0 ? source[i].b : source[i].a;
+                const uint64_t value = key == 0
+                    ? source[i].feature_id
+                    : (key == 1 ? source[i].b : source[i].a);
                 const uint32_t bucket =
                     (uint32_t)((value >> shift) & 0xffu);
                 destination[offsets[bucket]++] = source[i];
@@ -307,6 +324,7 @@ void sip_contact_cache_store(
             &cached->normal_x,
             &cached->normal_y
         );
+        cached->feature_id = contact->feature_id;
 
         cached->normal_impulse =
             contact->normal_impulse;

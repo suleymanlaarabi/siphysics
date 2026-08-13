@@ -1,5 +1,18 @@
 #include <test.h>
 
+#include "../../src/collision_runtime.h"
+
+static uint32_t collision_pipeline_event_enter_count;
+static uint32_t collision_pipeline_event_stay_count;
+
+static void collision_pipeline_event_callback(ecs_observer_event_t *event) {
+    if (event->event == SipCollisionEnter) {
+        collision_pipeline_event_enter_count++;
+    } else if (event->event == SipCollisionStay) {
+        collision_pipeline_event_stay_count++;
+    }
+}
+
 static void collision_import_settings(SipSettings settings) {
     ecs_init();
     ECS_MODULE_IMPORT(
@@ -72,6 +85,85 @@ void collision_pipeline_circle_box(void) {
     test_assert(ecs_get(circle, Position)->y > 0.75f);
     test_assert(ecs_get_resource_read(SipCollisionStats)->candidate_count == 1);
     test_assert(ecs_get_resource_read(SipCollisionStats)->contact_count == 1);
+    ecs_fini();
+}
+
+void collision_pipeline_box_box_face_manifold(void) {
+    collision_import(0.0f, 0.0f);
+    ecs_entity_t ground = collision_static_box(0.0f, 0.0f, 0.0f);
+    ecs_set(ground, BoxCollider, { .half_width = 4.0f, .half_height = 0.5f });
+    ecs_entity_t box = collision_dynamic_box(0.0f, 0.9f, 0.0f);
+    ecs_set(box, BoxCollider, { .half_width = 0.5f, .half_height = 0.5f });
+
+    collision_step();
+    const SipCollisionRuntime *runtime = ecs_get_resource_read(SipCollisionRuntime);
+    test_assert(runtime->contact_count == 2);
+    test_assert(runtime->contacts[0].point_x != runtime->contacts[1].point_x);
+    test_assert(runtime->contacts[0].feature_id != runtime->contacts[1].feature_id);
+    ecs_fini();
+}
+
+void collision_pipeline_box_box_corner_manifold(void) {
+    collision_import(0.0f, 0.0f);
+    ecs_entity_t ground = collision_static_box(0.0f, 0.0f, 0.0f);
+    ecs_set(ground, BoxCollider, { .half_width = 4.0f, .half_height = 0.5f });
+    ecs_entity_t box = collision_dynamic_box(0.0f, 1.2f, 0.785398163f);
+    ecs_set(box, BoxCollider, { .half_width = 0.5f, .half_height = 0.5f });
+
+    collision_step();
+    test_assert(ecs_get_resource_read(SipCollisionStats)->contact_count == 1);
+    ecs_fini();
+}
+
+void collision_pipeline_box_box_feature_stability(void) {
+    collision_import_settings((SipSettings){
+        .gravity_x = 0.0f,
+        .gravity_y = 0.0f,
+        .fixed_dt = 1.0f / 60.0f,
+        .max_frame_dt = 0.25f,
+        .max_substeps = 8,
+        .solver_iterations = 8,
+        .restitution_threshold = 1.0f,
+        .penetration_slop = 0.001f,
+        .penetration_correction = 0.0f,
+    });
+    ecs_entity_t ground = collision_static_box(0.0f, 0.0f, 0.0f);
+    ecs_set(ground, BoxCollider, { .half_width = 4.0f, .half_height = 0.5f });
+    collision_dynamic_box(0.0f, 1.0f, 0.0f);
+
+    collision_step();
+    collision_step();
+    const SipCollisionStats *stats = ecs_get_resource_read(SipCollisionStats);
+    test_assert(stats->contact_cache_count == 2);
+    test_assert(stats->contact_cache_hit_count == 2);
+    ecs_fini();
+}
+
+void collision_pipeline_box_box_event_single_pair(void) {
+    collision_import(0.0f, 0.0f);
+    ecs_observer({
+        .on = SipCollisionEnter,
+        .query.terms = { ecs_in(CollisionEvents) },
+        .callback = collision_pipeline_event_callback,
+    });
+    ecs_observer({
+        .on = SipCollisionStay,
+        .query.terms = { ecs_in(CollisionEvents) },
+        .callback = collision_pipeline_event_callback,
+    });
+    ecs_entity_t ground = collision_static_box(0.0f, 0.0f, 0.0f);
+    ecs_set(ground, BoxCollider, { .half_width = 4.0f, .half_height = 0.5f });
+    ecs_entity_t box = collision_dynamic_box(0.0f, 1.0f, 0.0f);
+    ecs_add(box, CollisionEvents);
+    ecs_set(box, BoxCollider, { .half_width = 0.5f, .half_height = 0.5f });
+    collision_pipeline_event_enter_count = 0;
+    collision_pipeline_event_stay_count = 0;
+
+    collision_step();
+    test_assert(collision_pipeline_event_enter_count == 1);
+    test_assert(ecs_get_resource_read(SipCollisionStats)->event_pair_count == 1);
+    collision_step();
+    test_assert(collision_pipeline_event_stay_count == 1);
     ecs_fini();
 }
 

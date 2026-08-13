@@ -70,6 +70,7 @@ typedef struct SipPair {
 typedef struct SipCachedContact {
     ecs_entity_t a;
     ecs_entity_t b;
+    uint32_t feature_id;
 
     float normal_x;
     float normal_y;
@@ -79,7 +80,7 @@ typedef struct SipCachedContact {
 } SipCachedContact;
 
 _Static_assert(
-    sizeof(SipCachedContact) <= 32,
+    sizeof(SipCachedContact) <= 48,
     "SipCachedContact must remain compact"
 );
 
@@ -91,6 +92,9 @@ typedef struct SipSolverContact {
 
     float normal_x;
     float normal_y;
+    float point_x;
+    float point_y;
+    uint32_t feature_id;
     float penetration;
 
     float restitution;
@@ -105,7 +109,7 @@ typedef struct SipSolverContact {
     uint8_t sensor;
 } SipSolverContact;
 
-_Static_assert(sizeof(SipSolverContact) <= 64,
+_Static_assert(sizeof(SipSolverContact) <= 80,
                "SipSolverContact must remain compact for solver bandwidth");
 
 typedef struct SipEventPair {

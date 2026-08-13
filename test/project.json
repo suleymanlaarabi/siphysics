@@ -31,6 +31,10 @@
         "id": "collision_pipeline",
         "testcases": [
           "circle_box",
+          "box_box_face_manifold",
+          "box_box_corner_manifold",
+          "box_box_feature_stability",
+          "box_box_event_single_pair",
           "all_shapes",
           "sensor_filter",
           "invalid_archetypes",

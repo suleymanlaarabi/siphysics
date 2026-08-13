@@ -172,8 +172,59 @@ static void sip_contact_material(const SipBatchRef *a, uint32_t row_a,
     contact->sensor = a->sensor || b->sensor;
 }
 
+static void sip_add_event_pair(SipCollisionRuntime *runtime,
+                               const SipProxy *proxy_a,
+                               const SipProxy *proxy_b,
+                               const SipContact *geometry) {
+    if (!(proxy_a->event_interest || proxy_b->event_interest)) {
+        return;
+    }
+    sip_reserve_event_pairs(runtime, runtime->current_event_pair_count + 1);
+    const SipBatchRef *batch_a = &runtime->batches[proxy_a->batch_index];
+    const SipBatchRef *batch_b = &runtime->batches[proxy_b->batch_index];
+    const ecs_entity_t entity_a = batch_a->entities[proxy_a->row];
+    const ecs_entity_t entity_b = batch_b->entities[proxy_b->row];
+    float point_x = geometry->points[0].x;
+    float point_y = geometry->points[0].y;
+    float penetration = geometry->points[0].penetration;
+    if (geometry->point_count == 2) {
+        point_x = (geometry->points[0].x + geometry->points[1].x) * 0.5f;
+        point_y = (geometry->points[0].y + geometry->points[1].y) * 0.5f;
+        penetration = geometry->points[0].penetration > geometry->points[1].penetration
+            ? geometry->points[0].penetration
+            : geometry->points[1].penetration;
+    }
+    SipEventPair *pair = &runtime->current_pairs[runtime->current_event_pair_count++];
+    if (entity_a < entity_b) {
+        *pair = (SipEventPair){
+            .a = entity_a,
+            .b = entity_b,
+            .normal_x = geometry->normal_x,
+            .normal_y = geometry->normal_y,
+            .point_x = point_x,
+            .point_y = point_y,
+            .penetration = penetration,
+            .interest_a = proxy_a->event_interest,
+            .interest_b = proxy_b->event_interest,
+        };
+    } else {
+        *pair = (SipEventPair){
+            .a = entity_b,
+            .b = entity_a,
+            .normal_x = -geometry->normal_x,
+            .normal_y = -geometry->normal_y,
+            .point_x = point_x,
+            .point_y = point_y,
+            .penetration = penetration,
+            .interest_a = proxy_b->event_interest,
+            .interest_b = proxy_a->event_interest,
+        };
+    }
+}
+
 static void sip_add_contact(SipCollisionRuntime *runtime, const SipProxy *proxy_a,
-                            const SipProxy *proxy_b, const SipContact *geometry) {
+                            const SipProxy *proxy_b, const SipContactPoint *point,
+                            float normal_x, float normal_y) {
     if (runtime->contact_count == runtime->contact_capacity) {
         uint32_t capacity = runtime->contact_capacity ? runtime->contact_capacity * 2 : 64;
         runtime->contacts = realloc(runtime->contacts, sizeof(*runtime->contacts) * capacity);
@@ -187,9 +238,12 @@ static void sip_add_contact(SipCollisionRuntime *runtime, const SipProxy *proxy_
     contact->row_a = proxy_a->row;
     contact->batch_b = proxy_b->batch_index;
     contact->row_b = proxy_b->row;
-    contact->normal_x = geometry->normal_x;
-    contact->normal_y = geometry->normal_y;
-    contact->penetration = geometry->penetration;
+    contact->normal_x = normal_x;
+    contact->normal_y = normal_y;
+    contact->point_x = point->x;
+    contact->point_y = point->y;
+    contact->penetration = point->penetration;
+    contact->feature_id = point->feature_id;
     contact->normal_impulse = 0.0f;
     contact->tangent_impulse = 0.0f;
     contact->restitution_bias = 0.0f;
@@ -212,37 +266,6 @@ static void sip_add_contact(SipCollisionRuntime *runtime, const SipProxy *proxy_
         );
     }
 
-    if (proxy_a->event_interest || proxy_b->event_interest) {
-        sip_reserve_event_pairs(runtime, runtime->current_event_pair_count + 1);
-        const ecs_entity_t entity_a = batch_a->entities[proxy_a->row];
-        const ecs_entity_t entity_b = batch_b->entities[proxy_b->row];
-        SipEventPair *pair = &runtime->current_pairs[runtime->current_event_pair_count++];
-        if (entity_a < entity_b) {
-            *pair = (SipEventPair){
-                .a = entity_a,
-                .b = entity_b,
-                .normal_x = geometry->normal_x,
-                .normal_y = geometry->normal_y,
-                .point_x = geometry->point_x,
-                .point_y = geometry->point_y,
-                .penetration = geometry->penetration,
-                .interest_a = proxy_a->event_interest,
-                .interest_b = proxy_b->event_interest,
-            };
-        } else {
-            *pair = (SipEventPair){
-                .a = entity_b,
-                .b = entity_a,
-                .normal_x = -geometry->normal_x,
-                .normal_y = -geometry->normal_y,
-                .point_x = geometry->point_x,
-                .point_y = geometry->point_y,
-                .penetration = geometry->penetration,
-                .interest_a = proxy_b->event_interest,
-                .interest_b = proxy_a->event_interest,
-            };
-        }
-    }
 }
 
 static void narrow_cc(SipCollisionRuntime *runtime) {
@@ -258,7 +281,11 @@ static void narrow_cc(SipCollisionRuntime *runtime) {
                 batch_a->circles[a->row].radius,
                 batch_b->positions[b->row].x, batch_b->positions[b->row].y,
                 batch_b->circles[b->row].radius, &geometry)) {
-            sip_add_contact(runtime, a, b, &geometry);
+            sip_add_event_pair(runtime, a, b, &geometry);
+            for (uint32_t point_index = 0; point_index < geometry.point_count; point_index++) {
+                sip_add_contact(runtime, a, b, &geometry.points[point_index],
+                                geometry.normal_x, geometry.normal_y);
+            }
         }
     }
 }
@@ -277,7 +304,12 @@ static void narrow_cb(SipCollisionRuntime *runtime) {
                 circle_batch->positions[circle_proxy->row].x,
                 circle_batch->positions[circle_proxy->row].y,
                 circle_batch->circles[circle_proxy->row].radius, &box, &geometry)) {
-            sip_add_contact(runtime, circle_proxy, box_proxy, &geometry);
+            sip_add_event_pair(runtime, circle_proxy, box_proxy, &geometry);
+            for (uint32_t point_index = 0; point_index < geometry.point_count; point_index++) {
+                sip_add_contact(runtime, circle_proxy, box_proxy,
+                                &geometry.points[point_index],
+                                geometry.normal_x, geometry.normal_y);
+            }
         }
     }
 }
@@ -295,7 +327,11 @@ static void narrow_bb(SipCollisionRuntime *runtime) {
             batch_b, b->row, &runtime->box_geoms[b->box_geom_index]);
         SipContact geometry;
         if (sip_box_box(&box_a, &box_b, &geometry)) {
-            sip_add_contact(runtime, a, b, &geometry);
+            sip_add_event_pair(runtime, a, b, &geometry);
+            for (uint32_t point_index = 0; point_index < geometry.point_count; point_index++) {
+                sip_add_contact(runtime, a, b, &geometry.points[point_index],
+                                geometry.normal_x, geometry.normal_y);
+            }
         }
     }
 }
