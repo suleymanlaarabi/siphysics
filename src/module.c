@@ -98,6 +98,8 @@ void siphysics_import(const siphysics_props_t *props) {
         .proxy_count = 0,
         .candidate_count = 0,
         .contact_count = 0,
+        .contact_cache_count = 0,
+        .contact_cache_hit_count = 0,
         .event_pair_count = 0,
         .event_dispatch_count = 0,
         .scratch_growth_count = 0,

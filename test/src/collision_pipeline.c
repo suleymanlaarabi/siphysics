@@ -399,3 +399,159 @@ void collision_pipeline_many_falling_circles(void) {
     }
     ecs_fini();
 }
+
+static void collision_cache_import(float gravity_y, uint32_t iterations) {
+    collision_import_settings((SipSettings){
+        .gravity_x = 0.0f,
+        .gravity_y = gravity_y,
+        .fixed_dt = 1.0f / 60.0f,
+        .max_frame_dt = 0.25f,
+        .max_substeps = 8,
+        .solver_iterations = iterations,
+        .restitution_threshold = 1.0f,
+        .penetration_slop = 0.005f,
+        .penetration_correction = 0.8f,
+    });
+}
+
+static ecs_entity_t collision_cache_ground(float y, float friction) {
+    ecs_entity_t ground = collision_static_box(0.0f, y, 0.0f);
+    ecs_set(ground, BoxCollider, {
+        .half_width = 10.0f,
+        .half_height = 0.5f,
+    });
+    collision_regression_material(ground, friction, 0.0f);
+    return ground;
+}
+
+static ecs_entity_t collision_cache_circle(float y, float friction) {
+    ecs_entity_t circle = collision_dynamic_circle(0.0f, y);
+    ecs_set(circle, CircleCollider, { .radius = 0.5f });
+    collision_regression_material(circle, friction, 0.0f);
+    return circle;
+}
+
+void collision_pipeline_contact_cache_hit(void) {
+    collision_cache_import(-10.0f, 2);
+    collision_cache_ground(0.0f, 0.5f);
+    collision_cache_circle(1.0f, 0.5f);
+
+    collision_step();
+    test_assert(ecs_get_resource_read(SipCollisionStats)->contact_cache_count == 1);
+
+    collision_step();
+    const SipCollisionStats *stats = ecs_get_resource_read(SipCollisionStats);
+    test_assert(stats->contact_cache_count == 1);
+    test_assert(stats->contact_cache_hit_count == 1);
+    ecs_fini();
+}
+
+void collision_pipeline_contact_cache_entity_generation(void) {
+    collision_cache_import(-10.0f, 2);
+    collision_cache_ground(0.0f, 0.5f);
+    ecs_entity_t circle = collision_cache_circle(1.0f, 0.5f);
+
+    collision_step();
+    collision_step();
+    const ecs_entity_t old_circle = circle;
+    ecs_kill(circle);
+
+    ecs_entity_t new_circle = collision_cache_circle(1.0f, 0.5f);
+    test_assert(old_circle != new_circle);
+    collision_step();
+    test_assert(ecs_get_resource_read(SipCollisionStats)->contact_cache_hit_count == 0);
+    ecs_fini();
+}
+
+void collision_pipeline_contact_cache_separation(void) {
+    collision_cache_import(-10.0f, 2);
+    collision_cache_ground(0.0f, 0.5f);
+    ecs_entity_t circle = collision_cache_circle(1.0f, 0.5f);
+
+    collision_step();
+    collision_step();
+    test_assert(ecs_get_resource_read(SipCollisionStats)->contact_cache_hit_count == 1);
+
+    ecs_set(circle, Position, { .x = 0.0f, .y = 10.0f });
+    ecs_set(circle, Velocity, { .x = 0.0f, .y = 0.0f });
+    collision_step();
+    const SipCollisionStats *stats = ecs_get_resource_read(SipCollisionStats);
+    test_assert(stats->contact_cache_count == 0);
+
+    ecs_set(circle, Position, { .x = 0.0f, .y = 1.0f });
+    ecs_set(circle, Velocity, { .x = 0.0f, .y = 0.0f });
+    collision_step();
+    test_assert(ecs_get_resource_read(SipCollisionStats)->contact_cache_hit_count == 0);
+    ecs_fini();
+}
+
+void collision_pipeline_warm_start_stack(void) {
+    collision_cache_import(-9.81f, 2);
+    collision_cache_ground(0.0f, 0.5f);
+    ecs_entity_t circles[8];
+    for (uint32_t i = 0; i < 8; i++) {
+        circles[i] = collision_cache_circle(1.0f + (float)i, 0.5f);
+    }
+
+    for (uint32_t i = 0; i < 1200; i++) {
+        collision_step();
+    }
+
+    for (uint32_t i = 0; i < 8; i++) {
+        const Position *position = ecs_get(circles[i], Position);
+        const Velocity *velocity = ecs_get(circles[i], Velocity);
+        test_assert(position->x > -0.25f && position->x < 0.25f);
+        test_assert(velocity->y > -0.15f && velocity->y < 0.15f);
+        test_assert(position->x == position->x && position->y == position->y);
+        test_assert(velocity->x == velocity->x && velocity->y == velocity->y);
+    }
+
+    test_assert(ecs_get(circles[0], Position)->y > 0.95f);
+    test_assert(ecs_get(circles[0], Position)->y < 1.05f);
+    test_assert(ecs_get(circles[7], Position)->y > 7.7f);
+    test_assert(ecs_get(circles[7], Position)->y < 8.3f);
+    test_assert(ecs_get_resource_read(SipCollisionStats)->contact_cache_hit_count >= 7);
+    ecs_fini();
+}
+
+void collision_pipeline_warm_start_low_iterations(void) {
+    collision_cache_import(-9.81f, 1);
+    collision_cache_ground(0.0f, 0.5f);
+    ecs_entity_t circles[5];
+    for (uint32_t i = 0; i < 5; i++) {
+        circles[i] = collision_cache_circle(1.0f + (float)i, 0.5f);
+    }
+
+    for (uint32_t i = 0; i < 600; i++) {
+        collision_step();
+    }
+
+    for (uint32_t i = 0; i < 5; i++) {
+        const Position *position = ecs_get(circles[i], Position);
+        const Velocity *velocity = ecs_get(circles[i], Velocity);
+        test_assert(position->x == position->x && position->y == position->y);
+        test_assert(velocity->x == velocity->x && velocity->y == velocity->y);
+        test_assert(velocity->y > -1.0f && velocity->y < 1.0f);
+        test_assert(position->y > 0.45f);
+    }
+    ecs_fini();
+}
+
+void collision_pipeline_warm_start_friction(void) {
+    collision_cache_import(-9.81f, 2);
+    collision_cache_ground(0.0f, 1.0f);
+    ecs_entity_t circle = collision_cache_circle(0.99f, 1.0f);
+    ecs_set(circle, Velocity, { .x = 4.0f, .y = 0.0f });
+
+    collision_step();
+    const float velocity_x_after_first = ecs_get(circle, Velocity)->x;
+    collision_step();
+    const SipCollisionStats *stats = ecs_get_resource_read(SipCollisionStats);
+    test_assert(stats->contact_cache_hit_count == 1);
+    for (uint32_t i = 0; i < 8; i++) {
+        collision_step();
+    }
+    test_assert(ecs_get(circle, Velocity)->x >= 0.0f);
+    test_assert(ecs_get(circle, Velocity)->x < velocity_x_after_first);
+    ecs_fini();
+}

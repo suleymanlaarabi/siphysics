@@ -46,6 +46,12 @@
           ,"friction_accumulation"
           ,"solver_iterations_position_independent"
           ,"many_falling_circles"
+          ,"contact_cache_hit"
+          ,"contact_cache_entity_generation"
+          ,"contact_cache_separation"
+          ,"warm_start_stack"
+          ,"warm_start_low_iterations"
+          ,"warm_start_friction"
         ]
       },
       {

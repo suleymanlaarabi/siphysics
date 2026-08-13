@@ -192,9 +192,25 @@ static void sip_add_contact(SipCollisionRuntime *runtime, const SipProxy *proxy_
     contact->penetration = geometry->penetration;
     contact->normal_impulse = 0.0f;
     contact->tangent_impulse = 0.0f;
+    contact->restitution_bias = 0.0f;
     contact->body_type_a = proxy_a->body_type;
     contact->body_type_b = proxy_b->body_type;
     sip_contact_material(batch_a, proxy_a->row, batch_b, proxy_b->row, contact);
+
+    if (!contact->sensor) {
+        const ecs_entity_t entity_a =
+            batch_a->entities[proxy_a->row];
+
+        const ecs_entity_t entity_b =
+            batch_b->entities[proxy_b->row];
+
+        sip_contact_cache_restore(
+            runtime,
+            contact,
+            entity_a,
+            entity_b
+        );
+    }
 
     if (proxy_a->event_interest || proxy_b->event_interest) {
         sip_reserve_event_pairs(runtime, runtime->current_event_pair_count + 1);
@@ -332,6 +348,8 @@ void siphysics_collision_step(void) {
     stats->candidate_count = runtime->circle_circle_count + runtime->circle_box_count +
                              runtime->box_box_count;
     stats->contact_count = runtime->contact_count;
+    stats->contact_cache_count = runtime->current_contact_cache_count;
+    stats->contact_cache_hit_count = runtime->contact_cache_hit_count;
     stats->event_pair_count = runtime->current_event_pair_count;
     stats->event_dispatch_count = runtime->event_dispatch_count;
     stats->scratch_growth_count = runtime->growth_count;

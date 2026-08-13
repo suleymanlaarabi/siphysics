@@ -24,12 +24,17 @@ void sip_collision_runtime_destroy(void *ptr, uint32_t count) {
     free(runtime->circle_box_pairs);
     free(runtime->box_box_pairs);
     free(runtime->contacts);
+    free(runtime->previous_contact_cache);
+    free(runtime->current_contact_cache);
+    free(runtime->contact_cache_scratch);
     free(runtime->previous_pairs);
     free(runtime->current_pairs);
     free(runtime->event_pair_scratch);
 }
 
 void sip_collision_runtime_reset(SipCollisionRuntime *runtime) {
+    sip_contact_cache_begin_tick(runtime);
+
     SipEventPair *event_pairs = runtime->previous_pairs;
     runtime->previous_pairs = runtime->current_pairs;
     runtime->current_pairs = event_pairs;
@@ -104,6 +109,7 @@ void sip_collision_runtime_reserve(
         sizeof(*runtime->contacts),
         runtime
     );
+    sip_contact_cache_reserve(runtime, capacity->contact_capacity);
     if (capacity->event_pair_capacity > runtime->event_pair_capacity) {
         runtime->previous_pairs = realloc(
             runtime->previous_pairs,

@@ -36,6 +36,8 @@ ECS_RESOURCE_DECLARE_CPP(
         uint32_t proxy_count;
         uint32_t candidate_count;
         uint32_t contact_count;
+        uint32_t contact_cache_count;
+        uint32_t contact_cache_hit_count;
         uint32_t event_pair_count;
         uint32_t event_dispatch_count;
         uint64_t scratch_growth_count;

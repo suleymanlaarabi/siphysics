@@ -51,6 +51,163 @@ static void sip_collision_correct_positions(SipCollisionRuntime *runtime, const 
     }
 }
 
+static void sip_collision_prepare_velocities(
+    SipCollisionRuntime *runtime,
+    const SipSettings *settings
+) {
+    for (uint32_t i = 0;
+         i < runtime->contact_count;
+         i++) {
+        SipSolverContact *contact =
+            &runtime->contacts[i];
+
+        contact->restitution_bias = 0.0f;
+
+        if (contact->sensor) {
+            continue;
+        }
+
+        const SipBatchRef *batch_a =
+            &runtime->batches[contact->batch_a];
+
+        const SipBatchRef *batch_b =
+            &runtime->batches[contact->batch_b];
+
+        const float inverse_mass_a =
+            sip_body_inverse_mass(
+                batch_a,
+                contact->row_a
+            );
+
+        const float inverse_mass_b =
+            sip_body_inverse_mass(
+                batch_b,
+                contact->row_b
+            );
+
+        if (!(
+            inverse_mass_a +
+            inverse_mass_b >
+            0.0f
+        )) {
+            continue;
+        }
+
+        float relative_x;
+        float relative_y;
+
+        sip_relative_velocity(
+            batch_a,
+            contact->row_a,
+            batch_b,
+            contact->row_b,
+            &relative_x,
+            &relative_y
+        );
+
+        const float relative_normal =
+            relative_x * contact->normal_x +
+            relative_y * contact->normal_y;
+
+        if (
+            relative_normal <
+            -settings->restitution_threshold
+        ) {
+            contact->restitution_bias =
+                -contact->restitution *
+                relative_normal;
+        }
+    }
+}
+
+static void sip_collision_warm_start(
+    SipCollisionRuntime *runtime
+) {
+    for (uint32_t i = 0;
+         i < runtime->contact_count;
+         i++) {
+        SipSolverContact *contact =
+            &runtime->contacts[i];
+
+        if (contact->sensor) {
+            continue;
+        }
+
+        if (
+            contact->normal_impulse == 0.0f &&
+            contact->tangent_impulse == 0.0f
+        ) {
+            continue;
+        }
+
+        const SipBatchRef *batch_a =
+            &runtime->batches[contact->batch_a];
+
+        const SipBatchRef *batch_b =
+            &runtime->batches[contact->batch_b];
+
+        const float inverse_mass_a =
+            sip_body_inverse_mass(
+                batch_a,
+                contact->row_a
+            );
+
+        const float inverse_mass_b =
+            sip_body_inverse_mass(
+                batch_b,
+                contact->row_b
+            );
+
+        if (!(
+            inverse_mass_a +
+            inverse_mass_b >
+            0.0f
+        )) {
+            continue;
+        }
+
+        const float tangent_x =
+            -contact->normal_y;
+
+        const float tangent_y =
+            contact->normal_x;
+
+        const float impulse_x =
+            contact->normal_x *
+                contact->normal_impulse +
+            tangent_x *
+                contact->tangent_impulse;
+
+        const float impulse_y =
+            contact->normal_y *
+                contact->normal_impulse +
+            tangent_y *
+                contact->tangent_impulse;
+
+        sip_apply_velocity(
+            batch_a->velocities
+                ? &batch_a->velocities[
+                    contact->row_a
+                  ]
+                : NULL,
+            contact->body_type_a,
+            -impulse_x * inverse_mass_a,
+            -impulse_y * inverse_mass_a
+        );
+
+        sip_apply_velocity(
+            batch_b->velocities
+                ? &batch_b->velocities[
+                    contact->row_b
+                  ]
+                : NULL,
+            contact->body_type_b,
+            impulse_x * inverse_mass_b,
+            impulse_y * inverse_mass_b
+        );
+    }
+}
+
 static void sip_collision_solve_velocities(SipCollisionRuntime *runtime, const SipSettings *settings) {
     for (uint32_t iteration = 0; iteration < settings->solver_iterations; iteration++) {
         for (uint32_t i = 0; i < runtime->contact_count; i++) {
@@ -65,10 +222,9 @@ static void sip_collision_solve_velocities(SipCollisionRuntime *runtime, const S
             float relative_x, relative_y;
             sip_relative_velocity(batch_a, contact->row_a, batch_b, contact->row_b, &relative_x, &relative_y);
             const float relative_normal = relative_x * contact->normal_x + relative_y * contact->normal_y;
-            const float restitution = relative_normal < -settings->restitution_threshold ? contact->restitution : 0.0f;
-            const float normal_lambda = relative_normal > 0.0f
-                ? 0.0f
-                : -(1.0f + restitution) * relative_normal / inverse_mass_sum;
+            const float normal_lambda =
+                -(relative_normal - contact->restitution_bias) /
+                inverse_mass_sum;
             const float old_normal_impulse = contact->normal_impulse;
             float new_normal_impulse = old_normal_impulse + normal_lambda;
             if (new_normal_impulse < 0.0f) new_normal_impulse = 0.0f;
@@ -101,5 +257,8 @@ static void sip_collision_solve_velocities(SipCollisionRuntime *runtime, const S
 
 void sip_collision_solve(SipCollisionRuntime *runtime, const SipSettings *settings) {
     sip_collision_correct_positions(runtime, settings);
+    sip_collision_prepare_velocities(runtime, settings);
+    sip_collision_warm_start(runtime);
     sip_collision_solve_velocities(runtime, settings);
+    sip_contact_cache_store(runtime);
 }

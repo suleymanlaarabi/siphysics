@@ -67,6 +67,22 @@ typedef struct SipPair {
     uint32_t proxy_b;
 } SipPair;
 
+typedef struct SipCachedContact {
+    ecs_entity_t a;
+    ecs_entity_t b;
+
+    float normal_x;
+    float normal_y;
+
+    float normal_impulse;
+    float tangent_impulse;
+} SipCachedContact;
+
+_Static_assert(
+    sizeof(SipCachedContact) <= 32,
+    "SipCachedContact must remain compact"
+);
+
 typedef struct SipSolverContact {
     uint32_t batch_a;
     uint32_t row_a;
@@ -79,6 +95,7 @@ typedef struct SipSolverContact {
 
     float restitution;
     float friction;
+    float restitution_bias;
 
     float normal_impulse;
     float tangent_impulse;
@@ -131,6 +148,17 @@ ECS_RESOURCE_DECLARE(SipCollisionRuntime, {
     uint32_t contact_count;
     uint32_t contact_capacity;
 
+    SipCachedContact *previous_contact_cache;
+    uint32_t previous_contact_cache_count;
+
+    SipCachedContact *current_contact_cache;
+    uint32_t current_contact_cache_count;
+
+    SipCachedContact *contact_cache_scratch;
+    uint32_t contact_cache_capacity;
+
+    uint32_t contact_cache_hit_count;
+
     SipEventPair *previous_pairs;
     uint32_t previous_event_pair_count;
     SipEventPair *current_pairs;
@@ -157,5 +185,12 @@ void sip_collision_solve(SipCollisionRuntime *runtime, const SipSettings *settin
 void sip_collision_runtime_reserve(SipCollisionRuntime *runtime,
                                    const SipCollisionCapacity *capacity);
 void sip_collision_event_diff(SipCollisionRuntime *runtime);
+void sip_contact_cache_reserve(SipCollisionRuntime *runtime, uint32_t needed);
+void sip_contact_cache_begin_tick(SipCollisionRuntime *runtime);
+void sip_contact_cache_restore(SipCollisionRuntime *runtime,
+                               SipSolverContact *contact,
+                               ecs_entity_t entity_a,
+                               ecs_entity_t entity_b);
+void sip_contact_cache_store(SipCollisionRuntime *runtime);
 
 #endif
