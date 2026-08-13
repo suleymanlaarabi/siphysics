@@ -144,9 +144,7 @@ ECS_RESOURCE_DECLARE(SipCollisionRuntime, {
 });
 
 void siphysics_collision_init(void);
-void siphysics_collision_register_system(ecs_system_id_t integrate_velocity,
-                                         ecs_system_id_t integrate_angular_velocity);
-void siphysics_collision_step(ecs_iter_t *it);
+void siphysics_collision_step(void);
 
 void sip_collision_runtime_reset(SipCollisionRuntime *runtime);
 void sip_collision_runtime_destroy(void *ptr, uint32_t count);

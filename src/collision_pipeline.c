@@ -316,8 +316,7 @@ void sip_collision_narrowphase(SipCollisionRuntime *runtime) {
     narrow_bb(runtime);
 }
 
-void siphysics_collision_step(ecs_iter_t *it) {
-    (void)it;
+void siphysics_collision_step(void) {
     SipCollisionRuntime *runtime = ecs_get_resource(SipCollisionRuntime);
     SipCollisionStats *stats = ecs_get_resource(SipCollisionStats);
     const SipSettings *settings = ecs_get_resource_read(SipSettings);

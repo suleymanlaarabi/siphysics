@@ -110,7 +110,7 @@ void collision_events_lifecycle(void) {
     const ecs_entity_t a = sip_event_circle(0.0f, 0.0f, true, false);
     const ecs_entity_t b = sip_event_circle(0.75f, 0.0f, true, false);
 
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
     test_assert(sip_enter_count == 2);
     test_assert(sip_last_enter.self == a || sip_last_enter.self == b);
     test_assert(sip_last_enter.other == a || sip_last_enter.other == b);
@@ -118,12 +118,12 @@ void collision_events_lifecycle(void) {
     test_assert(ecs_get_resource_read(SipCollisionStats)->event_pair_count == 1);
     test_assert(ecs_get_resource_read(SipCollisionStats)->event_dispatch_count == 2);
 
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
     test_assert(sip_stay_count == 2);
     test_assert(sip_last_stay.penetration >= 0.0f);
 
     ecs_set(b, Position, { .x = 3.0f, .y = 0.0f });
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
     test_assert(sip_exit_count == 2);
     test_assert(sip_last_exit.other == b || sip_last_exit.other == a);
     ecs_fini();
@@ -133,14 +133,14 @@ void collision_events_interest(void) {
     sip_collision_events_import();
     const ecs_entity_t a = sip_event_circle(0.0f, 0.0f, true, false);
     sip_event_circle(0.75f, 0.0f, false, false);
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
     test_assert(sip_enter_count == 1);
     test_assert(sip_last_enter.self == a);
     test_assert(sip_last_enter.normal_x > 0.0f);
     test_assert(ecs_get_resource_read(SipCollisionStats)->event_pair_count == 1);
 
     ecs_remove(a, CollisionEvents);
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
     test_assert(sip_enter_count == 1);
     test_assert(sip_stay_count == 0);
     test_assert(sip_exit_count == 0);
@@ -149,10 +149,10 @@ void collision_events_interest(void) {
     sip_collision_events_import();
     const ecs_entity_t late = sip_event_circle(0.0f, 0.0f, false, false);
     sip_event_circle(0.75f, 0.0f, false, false);
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
     test_assert(ecs_get_resource_read(SipCollisionStats)->event_pair_count == 0);
     ecs_add(late, CollisionEvents);
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
     test_assert(sip_enter_count == 1);
     ecs_fini();
 }
@@ -161,7 +161,7 @@ void collision_events_sensor(void) {
     sip_collision_events_import();
     const ecs_entity_t circle = sip_event_static_circle(0.0f, 0.0f, true, true);
     const ecs_entity_t box = sip_event_static_box(0.0f, 0.0f, false, false);
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
     test_assert(sip_enter_count == 1);
     test_assert(ecs_get_resource_read(SipCollisionStats)->contact_count == 1);
     test_assert(ecs_get(circle, Position)->x == 0.0f);
@@ -171,7 +171,7 @@ void collision_events_sensor(void) {
     sip_collision_events_import();
     sip_event_static_circle(0.0f, 0.0f, false, false);
     const ecs_entity_t sensor_box = sip_event_static_box(0.0f, 0.0f, true, true);
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
     test_assert(sip_enter_count == 1);
     test_assert(sip_last_enter.self == sensor_box);
     ecs_fini();
@@ -179,7 +179,7 @@ void collision_events_sensor(void) {
     sip_collision_events_import();
     sip_event_static_circle(0.0f, 0.0f, true, true);
     sip_event_static_circle(0.75f, 0.0f, true, true);
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
     test_assert(sip_enter_count == 2);
     test_assert(ecs_get_resource_read(SipCollisionStats)->contact_count == 1);
     ecs_fini();
@@ -189,10 +189,10 @@ void collision_events_removed_entities(void) {
     sip_collision_events_import();
     const ecs_entity_t a = sip_event_circle(0.0f, 0.0f, true, false);
     const ecs_entity_t b = sip_event_circle(0.75f, 0.0f, true, false);
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
     test_assert(sip_enter_count == 2);
     ecs_kill(b);
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
     test_assert(sip_exit_count == 1);
     test_assert(sip_last_exit.self == a);
     test_assert(sip_last_exit.other == b);
@@ -201,10 +201,10 @@ void collision_events_removed_entities(void) {
     sip_collision_events_import();
     const ecs_entity_t sensor = sip_event_static_circle(0.0f, 0.0f, true, true);
     sip_event_static_box(0.0f, 0.0f, false, false);
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
     test_assert(sip_enter_count == 1);
     ecs_remove(sensor, CircleCollider);
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
     test_assert(sip_exit_count == 1);
     ecs_fini();
 }
@@ -220,10 +220,10 @@ void collision_events_capacity(void) {
     sip_event_circle(0.0f, 0.0f, true, false);
     sip_event_circle(0.75f, 0.0f, true, false);
     sip_event_static_circle(10.0f, 0.0f, false, true);
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
     const uint64_t growth = ecs_get_resource_read(SipCollisionStats)->scratch_growth_count;
     for (uint32_t i = 0; i < 1000; i++) {
-        ecs_progress();
+        siphysics_advance(1.0f / 60.0f);
     }
     test_assert(ecs_get_resource_read(SipCollisionStats)->scratch_growth_count == growth);
     ecs_fini();

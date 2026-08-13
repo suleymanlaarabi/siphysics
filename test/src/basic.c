@@ -49,6 +49,30 @@ void basic_module_and_defaults(void) {
     test_assert(settings->penetration_slop == 0.005f);
     test_assert(settings->penetration_correction == 0.8f);
     ecs_fini();
+
+    ecs_init();
+    ECS_MODULE_IMPORT(
+        siphysics,
+        {
+            .use_custom_settings = true,
+            .settings = {
+                .gravity_x = 0.0f,
+                .gravity_y = 0.0f,
+                .fixed_dt = 0.0f,
+                .max_frame_dt = 0.0f,
+                .max_substeps = 0,
+                .solver_iterations = 0,
+                .penetration_slop = 0.005f,
+                .penetration_correction = 0.8f,
+            },
+        }
+    );
+    settings = ecs_get_resource_read(SipSettings);
+    test_assert(settings->fixed_dt == 1.0f / 60.0f);
+    test_assert(settings->max_frame_dt == 0.25f);
+    test_int(1, settings->max_substeps);
+    test_int(1, settings->solver_iterations);
+    ecs_fini();
 }
 
 void basic_body_components(void) {

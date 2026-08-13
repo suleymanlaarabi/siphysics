@@ -60,6 +60,8 @@ ECS_MODULE_DECLARE(siphysics, {
 
 extern ecs_phase_t siphysics_phase;
 
+SIPHYSICS_API void siphysics_advance(float frame_dt);
+
 #ifdef __cplusplus
 }
 #endif

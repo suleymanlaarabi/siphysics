@@ -255,16 +255,4 @@ void siphysics_collision_init(void) {
     }
 }
 
-void siphysics_collision_register_system(
-    ecs_system_id_t integrate_velocity,
-    ecs_system_id_t integrate_angular_velocity
-) {
-    ecs_system(
-        { .name = "CollisionStep",
-          .phase = siphysics_phase,
-          .after = { integrate_velocity, integrate_angular_velocity },
-          .callback = siphysics_collision_step,
-          .main_thread_only = true }
-    );
-}
 #endif

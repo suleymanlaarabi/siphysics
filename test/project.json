@@ -35,7 +35,11 @@
           "sensor_filter",
           "invalid_archetypes",
           "dynamic_kinematic_masses",
-          "gravity_delta_time"
+          "fixed_timestep_accumulator",
+          "fixed_timestep_split",
+          "fixed_timestep_max_substeps",
+          "fixed_timestep_clamp",
+          "fixed_timestep_angular"
         ]
       },
       {

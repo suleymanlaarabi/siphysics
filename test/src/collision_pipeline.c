@@ -1,30 +1,32 @@
-#define _POSIX_C_SOURCE 200809L
-
 #include <test.h>
-#include <time.h>
 
-static void collision_import(float gravity_x, float gravity_y) {
+static void collision_import_settings(SipSettings settings) {
     ecs_init();
     ECS_MODULE_IMPORT(
         siphysics,
         {
             .use_custom_settings = true,
-            .settings = {
-                .gravity_x = gravity_x,
-                .gravity_y = gravity_y,
-                .fixed_dt = 1.0f / 60.0f,
-                .max_frame_dt = 0.25f,
-                .max_substeps = 8,
-                .solver_iterations = 8,
-                .penetration_slop = 0.001f,
-                .penetration_correction = 1.0f,
-            },
+            .settings = settings,
         }
     );
 }
 
+static void collision_import(float gravity_x, float gravity_y) {
+    SipSettings settings = {
+        .gravity_x = gravity_x,
+        .gravity_y = gravity_y,
+        .fixed_dt = 1.0f / 60.0f,
+        .max_frame_dt = 0.25f,
+        .max_substeps = 8,
+        .solver_iterations = 8,
+        .penetration_slop = 0.001f,
+        .penetration_correction = 1.0f,
+    };
+    collision_import_settings(settings);
+}
+
 static void collision_step(void) {
-    ecs_progress();
+    siphysics_advance(1.0f / 60.0f);
 }
 
 static ecs_entity_t collision_dynamic_circle(float x, float y) {
@@ -142,14 +144,137 @@ void collision_pipeline_dynamic_kinematic_masses(void) {
     ecs_fini();
 }
 
-void collision_pipeline_gravity_delta_time(void) {
-    collision_import(0.0f, -10.0f);
+void collision_pipeline_fixed_timestep_accumulator(void) {
+    collision_import_settings((SipSettings){
+        .gravity_x = 0.0f,
+        .gravity_y = -8.0f,
+        .fixed_dt = 0.125f,
+        .max_frame_dt = 1.0f,
+        .max_substeps = 8,
+        .solver_iterations = 8,
+        .penetration_slop = 0.001f,
+        .penetration_correction = 1.0f,
+    });
     ecs_entity_t circle = collision_dynamic_circle(0.0f, 10.0f);
-    ecs_progress();
-    struct timespec delay = { .tv_sec = 0, .tv_nsec = 1000000 };
-    nanosleep(&delay, NULL);
-    ecs_progress();
-    test_assert(ecs_get(circle, Velocity)->y < 0.0f);
-    test_assert(ecs_get(circle, Position)->y < 10.0f);
+    siphysics_advance(0.0625f);
+    test_assert(ecs_get(circle, Velocity)->y == 0.0f);
+    test_assert(ecs_get(circle, Position)->y == 10.0f);
+
+    siphysics_advance(0.0625f);
+    test_assert(ecs_get(circle, Velocity)->y == -1.0f);
+    test_assert(ecs_get(circle, Position)->y == 9.875f);
+    ecs_fini();
+}
+
+typedef struct FixedTimestepState {
+    Position position;
+    Velocity velocity;
+} FixedTimestepState;
+
+static FixedTimestepState collision_pipeline_run_split(
+    uint32_t calls,
+    float frame_dt
+) {
+    collision_import_settings((SipSettings){
+        .gravity_x = 0.0f,
+        .gravity_y = -8.0f,
+        .fixed_dt = 1.0f / 64.0f,
+        .max_frame_dt = 1.0f,
+        .max_substeps = 8,
+        .solver_iterations = 8,
+        .penetration_slop = 0.001f,
+        .penetration_correction = 1.0f,
+    });
+    ecs_entity_t circle = collision_dynamic_circle(0.0f, 10.0f);
+    ecs_set(circle, Velocity, { .x = 1.0f, .y = 0.0f });
+
+    for (uint32_t i = 0; i < calls; i++) {
+        siphysics_advance(frame_dt);
+    }
+
+    FixedTimestepState state = {
+        .position = *ecs_get(circle, Position),
+        .velocity = *ecs_get(circle, Velocity),
+    };
+    ecs_fini();
+    return state;
+}
+
+void collision_pipeline_fixed_timestep_split(void) {
+    const FixedTimestepState a =
+        collision_pipeline_run_split(64, 1.0f / 64.0f);
+    const FixedTimestepState b =
+        collision_pipeline_run_split(128, 1.0f / 128.0f);
+    const FixedTimestepState c =
+        collision_pipeline_run_split(32, 1.0f / 32.0f);
+
+    test_assert(a.position.x == b.position.x);
+    test_assert(a.position.x == c.position.x);
+    test_assert(a.position.y == b.position.y);
+    test_assert(a.position.y == c.position.y);
+    test_assert(a.velocity.x == b.velocity.x);
+    test_assert(a.velocity.x == c.velocity.x);
+    test_assert(a.velocity.y == b.velocity.y);
+    test_assert(a.velocity.y == c.velocity.y);
+}
+
+void collision_pipeline_fixed_timestep_max_substeps(void) {
+    collision_import_settings((SipSettings){
+        .gravity_x = 0.0f,
+        .gravity_y = 0.0f,
+        .fixed_dt = 0.125f,
+        .max_frame_dt = 1.0f,
+        .max_substeps = 2,
+        .solver_iterations = 8,
+        .penetration_slop = 0.001f,
+        .penetration_correction = 1.0f,
+    });
+    ecs_entity_t circle = collision_dynamic_circle(0.0f, 0.0f);
+    ecs_set(circle, Velocity, { .x = 1.0f, .y = 0.0f });
+
+    siphysics_advance(0.5f);
+    test_assert(ecs_get(circle, Position)->x == 0.25f);
+
+    siphysics_advance(0.125f);
+    test_assert(ecs_get(circle, Position)->x == 0.375f);
+    ecs_fini();
+}
+
+void collision_pipeline_fixed_timestep_clamp(void) {
+    collision_import_settings((SipSettings){
+        .gravity_x = 0.0f,
+        .gravity_y = 0.0f,
+        .fixed_dt = 0.125f,
+        .max_frame_dt = 0.25f,
+        .max_substeps = 8,
+        .solver_iterations = 8,
+        .penetration_slop = 0.001f,
+        .penetration_correction = 1.0f,
+    });
+    ecs_entity_t circle = collision_dynamic_circle(0.0f, 0.0f);
+    ecs_set(circle, Velocity, { .x = 1.0f, .y = 0.0f });
+
+    siphysics_advance(10.0f);
+    test_assert(ecs_get(circle, Position)->x == 0.25f);
+    ecs_fini();
+}
+
+void collision_pipeline_fixed_timestep_angular(void) {
+    collision_import_settings((SipSettings){
+        .gravity_x = 0.0f,
+        .gravity_y = 0.0f,
+        .fixed_dt = 0.125f,
+        .max_frame_dt = 1.0f,
+        .max_substeps = 8,
+        .solver_iterations = 8,
+        .penetration_slop = 0.001f,
+        .penetration_correction = 1.0f,
+    });
+    ecs_entity_t circle = collision_dynamic_circle(0.0f, 0.0f);
+    ecs_set(circle, Rotation, { .angle = 0.0f });
+    ecs_set(circle, AngularVelocity, { .value = 2.0f });
+
+    siphysics_advance(0.25f);
+    test_assert(ecs_get(circle, Rotation)->angle == 0.5f);
     ecs_fini();
 }
