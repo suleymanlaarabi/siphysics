@@ -19,6 +19,7 @@ static void collision_import(float gravity_x, float gravity_y) {
         .max_frame_dt = 0.25f,
         .max_substeps = 8,
         .solver_iterations = 8,
+        .restitution_threshold = 1.0f,
         .penetration_slop = 0.001f,
         .penetration_correction = 1.0f,
     };
@@ -152,6 +153,7 @@ void collision_pipeline_fixed_timestep_accumulator(void) {
         .max_frame_dt = 1.0f,
         .max_substeps = 8,
         .solver_iterations = 8,
+        .restitution_threshold = 1.0f,
         .penetration_slop = 0.001f,
         .penetration_correction = 1.0f,
     });
@@ -182,6 +184,7 @@ static FixedTimestepState collision_pipeline_run_split(
         .max_frame_dt = 1.0f,
         .max_substeps = 8,
         .solver_iterations = 8,
+        .restitution_threshold = 1.0f,
         .penetration_slop = 0.001f,
         .penetration_correction = 1.0f,
     });
@@ -226,6 +229,7 @@ void collision_pipeline_fixed_timestep_max_substeps(void) {
         .max_frame_dt = 1.0f,
         .max_substeps = 2,
         .solver_iterations = 8,
+        .restitution_threshold = 1.0f,
         .penetration_slop = 0.001f,
         .penetration_correction = 1.0f,
     });
@@ -248,6 +252,7 @@ void collision_pipeline_fixed_timestep_clamp(void) {
         .max_frame_dt = 0.25f,
         .max_substeps = 8,
         .solver_iterations = 8,
+        .restitution_threshold = 1.0f,
         .penetration_slop = 0.001f,
         .penetration_correction = 1.0f,
     });
@@ -267,6 +272,7 @@ void collision_pipeline_fixed_timestep_angular(void) {
         .max_frame_dt = 1.0f,
         .max_substeps = 8,
         .solver_iterations = 8,
+        .restitution_threshold = 1.0f,
         .penetration_slop = 0.001f,
         .penetration_correction = 1.0f,
     });
@@ -276,5 +282,120 @@ void collision_pipeline_fixed_timestep_angular(void) {
 
     siphysics_advance(0.25f);
     test_assert(ecs_get(circle, Rotation)->angle == 0.5f);
+    ecs_fini();
+}
+
+static void collision_regression_import(float gravity_y, uint32_t iterations,
+                                        float slop, float correction) {
+    collision_import_settings((SipSettings){
+        .gravity_x = 0.0f, .gravity_y = gravity_y,
+        .fixed_dt = 1.0f / 60.0f, .max_frame_dt = 0.25f,
+        .max_substeps = 8, .solver_iterations = iterations,
+        .restitution_threshold = 1.0f, .penetration_slop = slop,
+        .penetration_correction = correction,
+    });
+}
+
+static void collision_regression_material(ecs_entity_t entity, float friction, float restitution) {
+    ecs_set(entity, CollisionMaterial, { .friction = friction, .restitution = restitution });
+}
+
+static ecs_entity_t collision_regression_ground(float y, float friction, float restitution) {
+    ecs_entity_t ground = collision_static_box(0.0f, y, 0.0f);
+    ecs_set(ground, BoxCollider, { .half_width = 20.0f, .half_height = 0.5f });
+    collision_regression_material(ground, friction, restitution);
+    return ground;
+}
+
+void collision_pipeline_position_correction_once(void) {
+    collision_regression_import(0.0f, 8, 0.0f, 0.5f);
+    ecs_entity_t circle = collision_dynamic_circle(0.0f, 0.75f);
+    ecs_set(circle, CircleCollider, { .radius = 0.5f });
+    collision_static_box(0.0f, 0.0f, 0.0f);
+    collision_step();
+    test_assert(ecs_get(circle, Position)->y > 0.8749f);
+    test_assert(ecs_get(circle, Position)->y < 0.8751f);
+    ecs_fini();
+}
+
+void collision_pipeline_resting_circle(void) {
+    collision_regression_import(-10.0f, 8, 0.005f, 0.8f);
+    collision_regression_ground(0.0f, 0.5f, 0.0f);
+    ecs_entity_t circle = collision_dynamic_circle(0.0f, 5.0f);
+    ecs_set(circle, CircleCollider, { .radius = 0.5f });
+    collision_regression_material(circle, 0.5f, 0.0f);
+    for (uint32_t i = 0; i < 600; i++) collision_step();
+    test_assert(ecs_get(circle, Position)->y > 0.98f && ecs_get(circle, Position)->y < 1.02f);
+    test_assert(ecs_get(circle, Velocity)->y > -0.1f && ecs_get(circle, Velocity)->y < 0.1f);
+    ecs_fini();
+}
+
+static float collision_regression_bounce(float velocity_y) {
+    collision_regression_import(0.0f, 8, 0.0f, 0.8f);
+    collision_regression_ground(0.0f, 0.0f, 1.0f);
+    ecs_entity_t circle = collision_dynamic_circle(0.0f, 0.99f);
+    ecs_set(circle, CircleCollider, { .radius = 0.5f });
+    ecs_set(circle, Velocity, { .x = 0.0f, .y = velocity_y });
+    collision_regression_material(circle, 0.0f, 1.0f);
+    collision_step();
+    float result = ecs_get(circle, Velocity)->y;
+    ecs_fini();
+    return result;
+}
+
+void collision_pipeline_restitution_threshold(void) {
+    test_assert(collision_regression_bounce(-0.2f) <= 0.05f);
+    test_assert(collision_regression_bounce(-4.0f) > 1.0f);
+}
+
+void collision_pipeline_friction_accumulation(void) {
+    collision_regression_import(0.0f, 8, 0.0f, 0.8f);
+    collision_regression_ground(0.0f, 1.0f, 0.0f);
+    ecs_entity_t circle = collision_dynamic_circle(0.0f, 0.99f);
+    ecs_set(circle, CircleCollider, { .radius = 0.5f });
+    ecs_set(circle, Velocity, { .x = 5.0f, .y = -1.0f });
+    collision_regression_material(circle, 1.0f, 0.0f);
+    collision_step();
+    test_assert(ecs_get(circle, Velocity)->x < 5.0f);
+    test_assert(ecs_get(circle, Velocity)->y >= -0.05f);
+    ecs_fini();
+}
+
+static float collision_regression_position(uint32_t iterations) {
+    collision_regression_import(0.0f, iterations, 0.0f, 0.8f);
+    ecs_entity_t circle = collision_dynamic_circle(0.0f, 0.75f);
+    collision_static_box(0.0f, 0.0f, 0.0f);
+    collision_step();
+    float y = ecs_get(circle, Position)->y;
+    ecs_fini();
+    return y;
+}
+
+void collision_pipeline_solver_iterations_position_independent(void) {
+    const float y_a = collision_regression_position(1);
+    const float y_b = collision_regression_position(16);
+    test_assert(y_a - y_b < 0.0001f && y_b - y_a < 0.0001f);
+}
+
+void collision_pipeline_many_falling_circles(void) {
+    collision_regression_import(-9.81f, 8, 0.005f, 0.8f);
+    collision_regression_ground(-0.5f, 0.5f, 0.0f);
+    ecs_entity_t circles[16];
+    uint32_t count = 0;
+    for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++) {
+        ecs_entity_t circle = collision_dynamic_circle(-3.0f + 2.0f * x, 2.0f + 2.0f * y);
+        circles[count++] = circle;
+        ecs_set(circle, CircleCollider, { .radius = 0.5f });
+        collision_regression_material(circle, 0.5f, 0.0f);
+    }
+    for (uint32_t i = 0; i < 600; i++) collision_step();
+    for (uint32_t i = 0; i < count; i++) {
+        const Position *position = ecs_get(circles[i], Position);
+        const Velocity *velocity = ecs_get(circles[i], Velocity);
+        test_assert(position->x == position->x && position->y == position->y);
+        test_assert(velocity->x == velocity->x && velocity->y == velocity->y);
+        test_assert(position->y > 0.45f && position->y < 10.0f);
+        test_assert(velocity->y > -0.5f && velocity->y < 0.5f);
+    }
     ecs_fini();
 }

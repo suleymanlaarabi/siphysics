@@ -40,6 +40,12 @@
           "fixed_timestep_max_substeps",
           "fixed_timestep_clamp",
           "fixed_timestep_angular"
+          ,"position_correction_once"
+          ,"resting_circle"
+          ,"restitution_threshold"
+          ,"friction_accumulation"
+          ,"solver_iterations_position_independent"
+          ,"many_falling_circles"
         ]
       },
       {

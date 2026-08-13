@@ -58,6 +58,7 @@ void siphysics_import(const siphysics_props_t *props) {
                                                             .max_frame_dt = 0.25f,
                                                             .max_substeps = 8,
                                                             .solver_iterations = 6,
+                                                            .restitution_threshold = 1.0f,
                                                             .penetration_slop = 0.005f,
                                                             .penetration_correction = 0.8f,
                                                         };
@@ -75,6 +76,10 @@ void siphysics_import(const siphysics_props_t *props) {
 
     if (settings.solver_iterations == 0) {
         settings.solver_iterations = 1;
+    }
+
+    if (!(settings.restitution_threshold >= 0.0f)) {
+        settings.restitution_threshold = 1.0f;
     }
 
     ecs_set_resource_rid(ecs_id(SipSettings), &settings);

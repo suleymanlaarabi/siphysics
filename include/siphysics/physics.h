@@ -18,13 +18,14 @@ ECS_RESOURCE_DECLARE_CPP(
         float max_frame_dt;
         uint32_t max_substeps;
         uint32_t solver_iterations;
+        float restitution_threshold;
         float penetration_slop;
         float penetration_correction;
     ),
     ECS_CPP_METHODS(
         SipSettings()
             : gravity_x(0), gravity_y(-9.81f), fixed_dt(1.0f / 60.0f), max_frame_dt(0.25f),
-              max_substeps(8), solver_iterations(6), penetration_slop(0.005f),
+              max_substeps(8), solver_iterations(6), restitution_threshold(1.0f), penetration_slop(0.005f),
               penetration_correction(0.8f) {}
     )
 );
