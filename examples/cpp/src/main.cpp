@@ -14,7 +14,7 @@ int main(int argc, char *argv[]) {
     ecs::import<siphysics>();
     ecs_observer_desc_t observer_desc{};
     observer_desc.on = SipCollisionEnter;
-    observer_desc.query.terms[0] = ecs_in(CollisionEvents);
+    observer_desc.query.components[0] = ecs_in(CollisionEvents);
     observer_desc.callback = on_collision_enter;
     ecs_observer_init(&observer_desc);
 

@@ -41,17 +41,17 @@ static void sip_collision_events_import(void) {
     );
     ecs_observer({
         .on = SipCollisionEnter,
-        .query.terms = { ecs_in(CollisionEvents) },
+        .query.components = { ecs_in(CollisionEvents) },
         .callback = sip_collision_event_callback,
     });
     ecs_observer({
         .on = SipCollisionStay,
-        .query.terms = { ecs_in(CollisionEvents) },
+        .query.components = { ecs_in(CollisionEvents) },
         .callback = sip_collision_event_callback,
     });
     ecs_observer({
         .on = SipCollisionExit,
-        .query.terms = { ecs_in(CollisionEvents) },
+        .query.components = { ecs_in(CollisionEvents) },
         .callback = sip_collision_event_callback,
     });
     sip_enter_count = 0;

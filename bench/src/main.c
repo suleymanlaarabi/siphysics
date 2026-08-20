@@ -226,17 +226,17 @@ static void benchmark_event_archetypes(uint32_t count, uint32_t mode) {
     if (mode == 2) {
         ecs_observer({
             .on = SipCollisionEnter,
-            .query.terms = { ecs_in(CollisionEvents) },
+            .query.components = { ecs_in(CollisionEvents) },
             .callback = benchmark_event_observer,
         });
         ecs_observer({
             .on = SipCollisionStay,
-            .query.terms = { ecs_in(CollisionEvents) },
+            .query.components = { ecs_in(CollisionEvents) },
             .callback = benchmark_event_observer,
         });
         ecs_observer({
             .on = SipCollisionExit,
-            .query.terms = { ecs_in(CollisionEvents) },
+            .query.components = { ecs_in(CollisionEvents) },
             .callback = benchmark_event_observer,
         });
     }
@@ -327,7 +327,7 @@ static void benchmark_sensor_scene(uint32_t count, uint32_t mode) {
 static void benchmark_aos_copy(uint32_t capacity) {
     BenchBodyHot *body_hot = malloc(sizeof(*body_hot) * capacity);
     ecs_query_id_t query = ecs_query({
-        .terms = {
+        .components = {
             ecs_inout(Position),
             ecs_inout(Velocity),
             ecs_in(CircleCollider),

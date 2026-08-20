@@ -13,7 +13,7 @@ int main(int argc, char *argv[]) {
     ECS_MODULE_IMPORT(siphysics, { .use_custom_settings = false });
     ecs_observer({
         .on = SipCollisionEnter,
-        .query.terms = { ecs_in(CollisionEvents) },
+        .query.components = { ecs_in(CollisionEvents) },
         .callback = on_collision_enter,
     });
 

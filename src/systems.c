@@ -142,7 +142,7 @@ void siphysics_register_systems(void) {
 
     runtime->gravity_query =
         ecs_query_init(&(ecs_query_desc_t){
-            .terms = {
+            .components = {
                 ecs_inout(Velocity),
                 ecs_filter(Dynamic),
                 ecs_not(Kinematic),
@@ -152,7 +152,7 @@ void siphysics_register_systems(void) {
 
     runtime->velocity_query =
         ecs_query_init(&(ecs_query_desc_t){
-            .terms = {
+            .components = {
                 ecs_inout(Position),
                 ecs_in(Velocity),
             },
@@ -160,7 +160,7 @@ void siphysics_register_systems(void) {
 
     runtime->angular_velocity_query =
         ecs_query_init(&(ecs_query_desc_t){
-            .terms = {
+            .components = {
                 ecs_inout(Rotation),
                 ecs_in(AngularVelocity),
             },
@@ -170,14 +170,14 @@ void siphysics_register_systems(void) {
         .name = "PhysicsStep",
         .phase = siphysics_phase,
         .callback = sip_physics_step_system,
-        .read_resources = {
-            ecs_id(SipSettings),
-            ecs_id(SipCollisionCapacity),
-        },
-        .write_resources = {
-            ecs_id(SipPhysicsRuntime),
-            ecs_id(SipCollisionRuntime),
-            ecs_id(SipCollisionStats),
+        .query = {
+            .resources = {
+                ecs_in(SipSettings),
+                ecs_in(SipCollisionCapacity),
+                ecs_inout(SipPhysicsRuntime),
+                ecs_inout(SipCollisionRuntime),
+                ecs_inout(SipCollisionStats),
+            },
         },
         .main_thread_only = true,
     });

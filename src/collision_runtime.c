@@ -130,12 +130,12 @@ void sip_collision_runtime_reserve(
 
 #ifndef SIPHYSICS_BENCHMARK
 static ecs_query_id_t sip_query_init_terms(
-    const ecs_query_term_t *terms,
+    const ecs_component_term_t *terms,
     uint32_t count
 ) {
     ecs_query_desc_t desc = {0};
     for (uint32_t i = 0; i < count; i++) {
-        desc.terms[i] = terms[i];
+        desc.components[i] = terms[i];
     }
     return ecs_query_init(&desc);
 }
@@ -148,7 +148,7 @@ static ecs_query_id_t sip_circle_query(
     bool sensor,
     bool events
 ) {
-    ecs_query_term_t terms[ECS_QUERY_TERM_CAPACITY] = { 0 };
+    ecs_component_term_t terms[ECS_QUERY_TERM_CAPACITY] = { 0 };
     uint32_t field = 0;
     terms[field++] = dynamic ? ecs_inout(Position) : ecs_in(Position);
     if (body == ecs_id(Dynamic)) {
@@ -165,10 +165,10 @@ static ecs_query_id_t sip_circle_query(
     terms[field++] = ecs_in(CollisionFilter);
     terms[field++] = sensor ? ecs_filter(Sensor) : ecs_not(Sensor);
     terms[field++] = events ? ecs_filter(CollisionEvents) : ecs_not(CollisionEvents);
-    terms[field++] = (ecs_query_term_t){ body, EcsFilter };
-    terms[field++] = (ecs_query_term_t){ excluded_body_a, EcsNot };
-    terms[field++] = (ecs_query_term_t){ excluded_body_b, EcsNot };
-    terms[field++] = (ecs_query_term_t){ ecs_id(BoxCollider), EcsNot };
+    terms[field++] = (ecs_component_term_t){ body, EcsFilter };
+    terms[field++] = (ecs_component_term_t){ excluded_body_a, EcsNot };
+    terms[field++] = (ecs_component_term_t){ excluded_body_b, EcsNot };
+    terms[field++] = (ecs_component_term_t){ ecs_id(BoxCollider), EcsNot };
     return sip_query_init_terms(terms, field);
 }
 
@@ -180,7 +180,7 @@ static ecs_query_id_t sip_box_query(
     bool sensor,
     bool events
 ) {
-    ecs_query_term_t terms[ECS_QUERY_TERM_CAPACITY] = { 0 };
+    ecs_component_term_t terms[ECS_QUERY_TERM_CAPACITY] = { 0 };
     uint32_t field = 0;
     terms[field++] = dynamic ? ecs_inout(Position) : ecs_in(Position);
     if (body == ecs_id(Dynamic)) {
@@ -198,10 +198,10 @@ static ecs_query_id_t sip_box_query(
     terms[field++] = ecs_in(CollisionFilter);
     terms[field++] = sensor ? ecs_filter(Sensor) : ecs_not(Sensor);
     terms[field++] = events ? ecs_filter(CollisionEvents) : ecs_not(CollisionEvents);
-    terms[field++] = (ecs_query_term_t){ body, EcsFilter };
-    terms[field++] = (ecs_query_term_t){ excluded_body_a, EcsNot };
-    terms[field++] = (ecs_query_term_t){ excluded_body_b, EcsNot };
-    terms[field++] = (ecs_query_term_t){ ecs_id(CircleCollider), EcsNot };
+    terms[field++] = (ecs_component_term_t){ body, EcsFilter };
+    terms[field++] = (ecs_component_term_t){ excluded_body_a, EcsNot };
+    terms[field++] = (ecs_component_term_t){ excluded_body_b, EcsNot };
+    terms[field++] = (ecs_component_term_t){ ecs_id(CircleCollider), EcsNot };
     return sip_query_init_terms(terms, field);
 }
 

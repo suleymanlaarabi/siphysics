@@ -143,12 +143,12 @@ void collision_pipeline_box_box_event_single_pair(void) {
     collision_import(0.0f, 0.0f);
     ecs_observer({
         .on = SipCollisionEnter,
-        .query.terms = { ecs_in(CollisionEvents) },
+        .query.components = { ecs_in(CollisionEvents) },
         .callback = collision_pipeline_event_callback,
     });
     ecs_observer({
         .on = SipCollisionStay,
-        .query.terms = { ecs_in(CollisionEvents) },
+        .query.components = { ecs_in(CollisionEvents) },
         .callback = collision_pipeline_event_callback,
     });
     ecs_entity_t ground = collision_static_box(0.0f, 0.0f, 0.0f);
